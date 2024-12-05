@@ -5,6 +5,7 @@
 #include <limits>
 #include <stdio.h>
 #include <stdlib.h>
+#include <fstream>
 
 const double pi = 3.14159;
 
@@ -37,18 +38,26 @@ int main() {
 
     // Initialize 3D arrays
     // Solution
-    std::vector<std::vector<std::vector<double>>> u(N, std::vector<std::vector<double>>(N, std::vector<double>(N, 0.0))); 
-    // Previous solution
-    std::vector<std::vector<std::vector<double>>> u_old = u;    
-    // RHS                                                        
-    std::vector<std::vector<std::vector<double>>> rhs(N, std::vector<std::vector<double>>(N, std::vector<double>(N, 0.0)));
-    // Exact solution
-    std::vector<std::vector<std::vector<double>>> exact = u;                                                           
+    double*** u = new double**[N];
+    double*** u_old = new double**[N];
+    double*** rhs = new double**[N];
+    double*** exact = new double**[N];
 
+    for (int i = 0; i < N; ++i) {
+        u[i] = new double*[N];
+        u_old[i] = new double*[N];
+        rhs[i] = new double*[N];
+        exact[i] = new double*[N];
+        for (int j = 0; j < N; ++j) {
+            u[i][j] = new double[N]();
+            u_old[i][j] = new double[N]();
+            rhs[i][j] = new double[N]();
+            exact[i][j] = new double[N]();
+        }
+    }
     // time initialization
     auto start_init = std::chrono::high_resolution_clock::now();
-
-       
+           
 
     // Initialization stage
     int init_flops = 0;
@@ -125,7 +134,10 @@ int main() {
         avg_update = 0.0;
         
         // Copy current solution to previous
-        u_old = u; 
+        for (int i = 0; i < N; ++i)
+            for (int j = 0; j < N; ++j)
+                for (int k = 0; k < N; ++k)
+                    u_old[i][j][k] = u[i][j][k];
 
         // residual and error
         double residual = 0.0;
@@ -139,7 +151,7 @@ int main() {
                 for (int k = 0; k < N; ++k) { 
                    if (((i + j + k) % 2) == (iter%2)){
 
-                        // call weap around function because periodic 
+                        // call wrap around function because periodic 
                         int j_prev = periodic_index(j - 1, N);
                         int j_next = periodic_index(j + 1, N); 
                         int k_prev = periodic_index(k - 1, N); 
@@ -213,12 +225,37 @@ int main() {
     printf("\n");
     printf("Total time (including initialization): %.2f seconds.\n", (init_time + solver_time).count());
 
-    printf("Iteration   Avg Residual       Avg Error\n");
+    // Write residuals and errors to a CSV file
+std::ofstream csv_file("residual_error_data_red_black.csv");
+if (csv_file.is_open()) {
+    csv_file << "Iteration,Avg Residual,Avg Error\n"; // CSV header
     for (size_t i = 0; i < avg_residual_per_iter.size(); ++i) {
-        printf("%10lu   %14.6e   %14.6e\n", i + 1, avg_residual_per_iter[i], avg_error_per_iter[i]);
+        csv_file << (i + 1) << "," 
+                 << avg_residual_per_iter[i] << "," 
+                 << avg_error_per_iter[i] << "\n";
     }
-
-
+    csv_file.close();
+    printf("Residual and error data written to residual_error_data.csv.\n");
+} else {
+    printf("Error: Unable to open file for writing.\n");
+}
+// free memory 
+for (int i = 0; i < N; ++i) {
+    for (int j = 0; j < N; ++j) {
+        delete[] u[i][j];
+        delete[] u_old[i][j];
+        delete[] rhs[i][j];
+        delete[] exact[i][j];
+    }
+    delete[] u[i];
+    delete[] u_old[i];
+    delete[] rhs[i];
+    delete[] exact[i];
+}
+delete[] u;
+delete[] u_old;
+delete[] rhs;
+delete[] exact;
 
 
     return 0;
