@@ -41,8 +41,8 @@
 #define cudaGetErrorString hipGetErrorString
 #define cudaGetLastError hipGetLastError
 
-// Kernel to perform one iteration
-__global__ void update_kernel(
+// Kernel to perform one iteration on boundary
+__global__ void update_boundary_kernel(
     double *u_new, const double *u_old, const double *rhs,
     double h_sq, int lower_bound_inc, int upper_bound_dec,
     int n_global_x, int n_global_y, int n_global_z, int iter,
@@ -52,12 +52,78 @@ __global__ void update_kernel(
   int j = blockIdx.y * blockDim.y + threadIdx.y;
   int k = blockIdx.z * blockDim.z + threadIdx.z;
 
+  int num_boundaries = ((i == 1 || i == n_global_x - 2) + (j == 1 || j == n_global_y - 2) + (k == 1 || k == n_global_z - 2);
+  if (num_boundaries == 0 || lower_bound_inc || )
+    return;
+
+  double local_diff = 0.0;
+  if (in_boundary)
+  {
+    int idx = i * (n_global_y * n_global_z) + j * n_global_z + k;
+
+    if ((i + j + k) % 2 == (iter % 2))
+    {
+      double u_left = u_old[idx - 1];
+      double u_right = u_old[idx + 1];
+      double u_down = u_old[idx - n_global_z];
+      double u_up = u_old[idx + n_global_z];
+      double u_back = u_old[idx - (n_global_x * n_global_y)];
+      double u_front = u_old[idx + (n_global_x * n_global_y)];
+      double rhs_val = rhs[idx];
+
+      double val = ((u_left + u_right) + (u_down + u_up) + (u_back + u_front) - rhs_val * h_sq) / 6.0;
+      local_diff = fabs(val - u_old[idx]);
+      u_new[idx] = val;
+    }
+    else
+    {
+      u_new[idx] = u_old[idx];
+    }
+  }
+
+  // Reduction for max diff
+  __shared__ double sdata[512];
+  int tid = threadIdx.z * blockDim.y * blockDim.x + threadIdx.y * blockDim.x + threadIdx.x;
+  sdata[tid] = local_diff;
+  __syncthreads();
+
+  int n = blockDim.x * blockDim.y * blockDim.z;
+  for (int s = n / 2; s > 0; s >>= 1)
+  {
+    if (tid < s)
+    {
+      double val_other = sdata[tid + s];
+      if (val_other > sdata[tid])
+      {
+        sdata[tid] = val_other;
+      }
+    }
+    __syncthreads();
+  }
+
+  if (tid == 0)
+  {
+    int block_idx = blockIdx.z * (gridDim.y * gridDim.x) + blockIdx.y * gridDim.x + blockIdx.x;
+    d_block_max_diffs[block_idx] = sdata[0];
+  }
+}
+
+// Kernel to perform one iteration on interior
+__global__ void update_interior_kernel(
+    double *u_new, const double *u_old, const double *rhs,
+    double h_sq,
+    int n_global_x, int n_global_y, int n_global_z, int iter,
+    double *d_block_max_diffs)
+{
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  int j = blockIdx.y * blockDim.y + threadIdx.y;
+  int k = blockIdx.z * blockDim.z + threadIdx.z;
+
   double local_diff = 0.0;
 
-  // internal points
-  if (i > (0 + lower_bound_inc) && i < (n_global_x - 1 - upper_bound_dec) &&
-      j > 0 && j < n_global_y - 1 &&
-      k > 0 && k < n_global_z - 1)
+  if (i > 1 && i < n_global_x - 2 &&
+      j > 1 && j < n_global_y - 2 &&
+      k > 1 && k < n_global_z - 2)
   {
     // index in the 1D array
     int idx = i * (n_global_y * n_global_z) + j * n_global_z + k;
@@ -66,7 +132,9 @@ __global__ void update_kernel(
     if ((i + j + k) % 2 != (iter % 2))
     {
       u_new[idx] = u_old[idx];
-    } else {
+    }
+    else
+    {
       // indices of 6 neighbors
       int idx_left = idx - 1;  // (i, j, k-1)
       int idx_right = idx + 1; // (i, j, k+1)
@@ -87,7 +155,7 @@ __global__ void update_kernel(
       double u_front = u_old[idx_front];
 
       double rhs_val = rhs[idx];
-      
+
       double val = ((u_left + u_right) + (u_down + u_up) + (u_back + u_front) - rhs_val * h_sq) / 6.0;
       local_diff = fabs(val - u_old[idx]);
       u_new[idx] = val;
@@ -129,7 +197,7 @@ int main(int argc, char **argv)
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
   // init gpu device
-  int ndevices=0;
+  int ndevices = 0;
   hipGetDeviceCount(&ndevices);
 
   printf("ndevices = %d\n", ndevices);
