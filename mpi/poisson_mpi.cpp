@@ -14,12 +14,13 @@ int main(int argc, char **argv)
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
   // 3d constants
-  const int N = 1000;
+  const int N = 100;
   const double start = 0.0;
   const double end = 1.0;
   const double h = (end - start) / (N - 1);
+  const double h_squared = h * h;
   const double tol = 1e-6;
-  const int max_iter = 10000;
+  const int max_iter = 100000;
   const double pi = acos(-1.0);
   const int n = 1, m = 1, l = 1;
 
@@ -61,9 +62,6 @@ int main(int argc, char **argv)
     return i * (local_Ny_with_ghosts * local_Nz_with_ghosts) + j * local_Nz_with_ghosts + k;
   };
 
-  // time initialization
-  auto start_init = std::chrono::high_resolution_clock::now();
-
   // Initialization stage
   int init_flops = 0;
   int init_bytes = 0;
@@ -73,6 +71,13 @@ int main(int argc, char **argv)
   double *u_old = new double[total_size];
   double *rhs = new double[total_size];
   double *exact = new double[total_size];
+
+  // Start init clock
+  double init_start_time = MPI_Wtime();
+
+  // Residuals and errors
+  std::vector<double> avg_residual_per_iter;
+  std::vector<double> avg_error_per_iter;
 
   // Initialize arrays
   for (int i = 0; i < total_size; i++)
@@ -97,11 +102,14 @@ int main(int argc, char **argv)
         int global_k = z_start_idx + k - 1;
 
         double z = start + global_k * h;
-        double val = sin(n * pi * x) * cos(m * pi * y) * sin(k * pi * z);
+        double val = sin(n * pi * x) * cos(m * pi * y) * sin(l * pi * z);
         exact[idx(i, j, k)] = val;
 
-        double lap = (n * n + m * m + l * l) * pi * pi * val;
+        double lap = -(n * n + m * m + l * l) * pi * pi * val;
         rhs[idx(i, j, k)] = lap;
+
+        init_flops += 8;
+        init_bytes += 2;
       }
     }
   }
@@ -114,9 +122,8 @@ int main(int argc, char **argv)
     {
       for (int k = 1; k <= local_Nz; ++k)
       {
-        u[idx(1, j, k)] = exact[idx(1, j, k)];
-        init_flops += 1;
-        init_bytes += 16;
+        u[idx(0, j, k)] = 0;
+        init_bytes += 1;
       }
     }
   }
@@ -128,12 +135,14 @@ int main(int argc, char **argv)
     {
       for (int k = 1; k <= local_Nz; ++k)
       {
-        u[idx(local_Nx, j, k)] = exact[idx(local_Nx, j, k)];
-        init_flops += 1;
-        init_bytes += 16;
+        u[idx(local_Nx + 1, j, k)] = 1;
+        init_bytes += 1;
       }
     }
   }
+
+  // End init time
+  double init_end_time = MPI_Wtime();
 
   // MPI datatypes for face exchanges
   MPI_Datatype yz_plane_type;
@@ -149,12 +158,9 @@ int main(int argc, char **argv)
   MPI_Type_commit(&xy_plane_type);
 
   // Performance Metrics (exported to CSV)
-  // int local_internal_points = (local_Nx - 2 + 1) * (local_Ny - 2 + 1);
-  // int flops_per_point = 11;                 // 3 multiplies, 3 adds, 4 divide, 1 subtract
-  // int bytes_per_point = 6 * sizeof(double); // 5 reads, 1 write
-
-  double local_flops = 0.0;
-  double local_bytes = 0.0;
+  int num_internal_points = N * N * (N - 2);
+  int flops_per_point = 13;                 // 7 adds, 3 subtractions, 2 multiplication, 1 division
+  int bytes_per_point = 8 * sizeof(double); // reads and writes from red black (averaged at 7.5 and rounded up)
 
   // Iterative update
   double diff = std::numeric_limits<double>::infinity();
@@ -164,12 +170,16 @@ int main(int argc, char **argv)
 
   while (diff > tol && iter < max_iter)
   {
-    std::cout << "Diff: " << diff << std::endl;
     diff = 0.0;
+
     for (int i = 0; i < total_size; i++)
     {
       u_old[i] = u[i];
     }
+
+    // residual and error
+    double residual = 0.0;
+    double error = 0.0;
 
     MPI_Request reqs[12];
     int req_count = 0;
@@ -204,30 +214,57 @@ int main(int argc, char **argv)
     MPI_Waitall(req_count, reqs, MPI_STATUSES_IGNORE);
 
     // Update solution
-    for (int i = 1; i <= local_Nx; ++i)
+    // skip first and last point because of dirchlet bounds for x
+    int lower_bound_inc = 0;
+    if (coords[0] == 0)
+      lower_bound_inc = 1;
+
+    int upper_bound_dec = 0;
+    if (coords[0] == dims[0] - 1)
+      upper_bound_dec = 1;
+
+    for (int i = 1 + lower_bound_inc; i <= local_Nx - upper_bound_dec; ++i)
     {
       for (int j = 1; j <= local_Ny; ++j)
       {
         for (int k = 1; k <= local_Nz; ++k)
         {
-          double x_update = u_old[idx(i - 1, j, k)] + u_old[idx(i + 1, j, k)] / (h * h);
-          double y_update = u_old[idx(i, j - 1, k)] + u_old[idx(i, j + 1, k)] / (h * h);
-          double z_update = u_old[idx(i, j, k - 1)] + u_old[idx(i, j, k + 1)] / (h * h);
+          // red black ordering
+          if ((i + j + k) % 2 == (iter % 2))
+          {
+            double x_update = (u_old[idx(i - 1, j, k)] + u_old[idx(i + 1, j, k)]);
+            double y_update = (u_old[idx(i, j - 1, k)] + u_old[idx(i, j + 1, k)]);
+            double z_update = (u_old[idx(i, j, k - 1)] + u_old[idx(i, j, k + 1)]);
 
-          double val = (x_update + y_update + z_update - rhs[idx(i, j, k)]) / (6.0 / (h * h));
+            double val = (x_update + y_update + z_update - rhs[idx(i, j, k)] * (h_squared)) / 6.0;
 
-          double d = std::fabs(val - u_old[idx(i, j, k)]);
-          if (d > diff)
-            diff = d;
-          u[idx(i, j, k)] = val;
+            double d = std::fabs(val - u_old[idx(i, j, k)]);
+            if (d > diff)
+              diff = d;
+            u[idx(i, j, k)] = val;
+          }
+          else
+          {
+            u[idx(i, j, k)] = u_old[idx(i, j, k)];
+          }
+
+          if (my_rank == 0)
+          {
+            // update residual and error
+            double update_diff = u[idx(i, j, k)] - exact[idx(i, j, k)];
+            residual += update_diff;
+            error += update_diff * update_diff;
+          }
         }
       }
     }
 
-    // // Update performance counters
-    // int total_points = local_Nx * local_Ny; // Includes interior + boundary
-    // local_flops += total_points * flops_per_point;
-    // local_bytes += total_points * bytes_per_point;
+    if (my_rank == 0)
+    {
+      // Normalize by the number of points
+      avg_residual_per_iter.push_back(residual / num_internal_points);
+      avg_error_per_iter.push_back(std::sqrt(error / num_internal_points));
+    }
 
     // Compute global maximum difference
     double global_diff;
@@ -261,34 +298,74 @@ int main(int argc, char **argv)
   MPI_Allreduce(&computation_time, &global_time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
   // Sum up total FLOPs and bytes across all processes
-  double total_flops = 0.0;
-  double total_bytes = 0.0;
-  MPI_Allreduce(&local_flops, &total_flops, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  MPI_Allreduce(&local_bytes, &total_bytes, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  double total_flops = iter * num_internal_points * flops_per_point;
+  double total_bytes = iter * num_internal_points * bytes_per_point;
+
+  double global_init_time;
+  double end_init_time = init_end_time - init_start_time;
+
+  MPI_Allreduce(&end_init_time, &global_init_time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
   if (my_rank == 0)
   {
-    double loss = std::sqrt(global_sum / (N * N * N));
+    double loss = std::sqrt(global_sum / num_internal_points);
     std::cout << "Computation took " << global_time << " seconds.\n";
     std::cout << "Converged in " << iter << " iterations.\n";
     std::cout << "L2 norm of the error: " << loss << "\n";
 
+    // Compute operational intensity and achieved performance for initialization
+    double operational_intensity_init = init_flops / init_bytes;
+    double achieved_performance_init = init_flops / global_init_time;
+
     // Compute operational intensity and achieved performance
-    double operational_intensity = total_flops / total_bytes;     // FLOPs per byte
-    double achieved_performance = total_flops / computation_time; // FLOPs per second
+    double operational_intensity = total_flops / total_bytes;
+    double achieved_performance = total_flops / global_time;
+
+    // Write residual and error data to CSV
+    std::ofstream csv_file_residuals;
+    csv_file_residuals.open("residual_error.csv", std::ios::app);
+    if (csv_file_residuals.is_open())
+    {
+      csv_file_residuals << "Iteration,Avg Residual,Avg Error\n"; // CSV header
+      for (size_t i = 0; i < avg_residual_per_iter.size(); ++i)
+      {
+        csv_file_residuals << (i + 1) << ","
+                           << avg_residual_per_iter[i] << ","
+                           << avg_error_per_iter[i] << "\n";
+      }
+      csv_file_residuals.close();
+    }
+
+    // Write init data to CSV
+    std::ofstream csv_file_init;
+    csv_file_init.open("init_data.csv", std::ios::app);
+    if (csv_file_init.is_open())
+    {
+      csv_file_init << "MPI 3D np=" << size << " -O2" << ","
+                    << operational_intensity_init << ","
+                    << achieved_performance_init / 1e12 << "," // Convert to TFLOPs/s
+                    << global_init_time << ","
+                    << "darkslategrey" << "\n";
+      csv_file_init.close();
+    }
 
     // Write performance data to CSV
-    // std::ofstream csv_file;
-    // csv_file.open("performance_data.csv", std::ios::app);
-    // csv_file << "MPI 2D np=" << size << " -O3 ffast-math ftree-vectorize march=native"
-    //          << "," << operational_intensity << ","
-    //          << achieved_performance / 1e9 << "," // Convert to GFLOPs/s
-    //          << computation_time << ","
-    //          << iter << ","
-    //          << total_flops << ","
-    //          << total_bytes << ","
-    //          << "darkslategrey" << "\n";
-    // csv_file.close();
+    std::ofstream csv_file;
+    csv_file.open("performance_data.csv", std::ios::app);
+    if (csv_file.is_open())
+    {
+      csv_file << "MPI 3D np=" << size << " -O2" << ","
+               << operational_intensity << ","
+               << achieved_performance / 1e12 << "," // Convert to TFLOPs/s
+               << global_time << ","
+               << global_time / iter << ","
+               << loss << ","
+               << iter << ","
+               << total_flops << ","
+               << total_bytes << ","
+               << "darkslategrey" << "\n";
+      csv_file.close();
+    }
   }
 
   // Free datatypes and allocated memory

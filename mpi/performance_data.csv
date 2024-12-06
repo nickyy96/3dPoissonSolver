@@ -1,0 +1,2 @@
+title,operational_intensity,achieved_performance,computation_time,avg_time_per_iter,error,iter_count,total_flops,total_bytes,color
+MPI 3D np=8 -O2,0.977474,-0.000290779,5.8266,0.000546842,0.222296,10655,-1.69425e+09,-1.7333e+09,darkslategrey
