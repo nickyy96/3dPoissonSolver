@@ -1,1 +1,2 @@
-MPI 3D np=8 -O2,-0.589445,-7.90972e-08,5678.94,0.283947,0.332722,20000,-4.49188e+08,7.62053e+08,darkslategrey
+title,operational_intensity,achieved_performance,computation_time,avg_time_per_iter,error,iter_count,total_tflops,total_tbytes,color
+MPI 3D np=8 -O2,0.203125,0.0195584,3.33703,0.000651382,0.298135,5123,65267020000,321314560000,darkslategrey

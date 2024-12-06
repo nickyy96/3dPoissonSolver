@@ -52,33 +52,33 @@ __global__ void update_boundary_kernel(
   int j = blockIdx.y * blockDim.y + threadIdx.y;
   int k = blockIdx.z * blockDim.z + threadIdx.z;
 
-  int num_boundaries = ((i == 1 || i == n_global_x - 2) + (j == 1 || j == n_global_y - 2) + (k == 1 || k == n_global_z - 2);
-  if (num_boundaries == 0 || lower_bound_inc || )
+  if ((i == 1 && lower_bound_inc) || (i == n_global_x - 2 && upper_bound_dec))
+    return;
+
+  int num_boundaries = (j == 1 || j == n_global_y - 2) + (k == 1 || k == n_global_z - 2);
+  if (num_boundaries < 2)
     return;
 
   double local_diff = 0.0;
-  if (in_boundary)
+  int idx = i * (n_global_y * n_global_z) + j * n_global_z + k;
+
+  if ((i + j + k) % 2 == (iter % 2))
   {
-    int idx = i * (n_global_y * n_global_z) + j * n_global_z + k;
+    double u_left = u_old[idx - 1];
+    double u_right = u_old[idx + 1];
+    double u_down = u_old[idx - n_global_z];
+    double u_up = u_old[idx + n_global_z];
+    double u_back = u_old[idx - (n_global_x * n_global_y)];
+    double u_front = u_old[idx + (n_global_x * n_global_y)];
+    double rhs_val = rhs[idx];
 
-    if ((i + j + k) % 2 == (iter % 2))
-    {
-      double u_left = u_old[idx - 1];
-      double u_right = u_old[idx + 1];
-      double u_down = u_old[idx - n_global_z];
-      double u_up = u_old[idx + n_global_z];
-      double u_back = u_old[idx - (n_global_x * n_global_y)];
-      double u_front = u_old[idx + (n_global_x * n_global_y)];
-      double rhs_val = rhs[idx];
-
-      double val = ((u_left + u_right) + (u_down + u_up) + (u_back + u_front) - rhs_val * h_sq) / 6.0;
-      local_diff = fabs(val - u_old[idx]);
-      u_new[idx] = val;
-    }
-    else
-    {
-      u_new[idx] = u_old[idx];
-    }
+    double val = ((u_left + u_right) + (u_down + u_up) + (u_back + u_front) - rhs_val * h_sq) / 6.0;
+    local_diff = fabs(val - u_old[idx]);
+    u_new[idx] = val;
+  }
+  else
+  {
+    u_new[idx] = u_old[idx];
   }
 
   // Reduction for max diff

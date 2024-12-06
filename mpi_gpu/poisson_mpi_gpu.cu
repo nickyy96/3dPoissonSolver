@@ -138,7 +138,7 @@ int main(int argc, char **argv)
   hipSetDevice(my_device);
 
   // 3d constants
-  const int N = 1000;
+  const int N = 100;
   const double start = 0.0;
   const double end = 1.0;
   const double h = (end - start) / (N - 1);
@@ -429,8 +429,8 @@ int main(int argc, char **argv)
   MPI_Allreduce(&computation_time, &global_time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
   // Sum up total FLOPs and bytes across all processes
-  double total_flops = iter * num_internal_points * flops_per_point;
-  double total_bytes = iter * num_internal_points * bytes_per_point;
+  long total_flops = long(iter) * long(num_internal_points) * long(flops_per_point);
+  long total_bytes = long(iter) * long(num_internal_points) * long(bytes_per_point);
 
   double global_init_time;
   double end_init_time = init_end_time - init_start_time;
@@ -445,11 +445,11 @@ int main(int argc, char **argv)
     std::cout << "L2 norm of the error: " << loss << "\n";
 
     // Compute operational intensity and achieved performance for initialization
-    double operational_intensity_init = init_flops / init_bytes;
+    double operational_intensity_init = static_cast<double>(init_flops) / init_bytes;
     double achieved_performance_init = init_flops / global_init_time;
 
     // Compute operational intensity and achieved performance
-    double operational_intensity = total_flops / total_bytes;
+    double operational_intensity = static_cast<double>(total_flops) / total_bytes;
     double achieved_performance = total_flops / global_time;
 
     // Write residual and error data to CSV
