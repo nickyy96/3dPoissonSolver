@@ -206,7 +206,7 @@ int main(int argc, char **argv)
   hipSetDevice(my_device);
 
   // 3d constants
-  const int N = 1000;
+  const int N = 100;
   const double start = 0.0;
   const double end = 1.0;
   const double h = (end - start) / (N - 1);
@@ -393,7 +393,11 @@ int main(int argc, char **argv)
     }
 
     // Update interior points immediately
-    GPU_CHECK(cudaMemcpyAsync(d_u_old, u_old, total_size * sizeof(double), cudaMemcpyHostToDevice));
+    GPU_CHECK(cudaMemcpyAsync(d_u_old, u_old, total_size * sizeof(double), cudaMemcpyHostToDevice, stream_interior));
+    update_interior_kernel<<<grid_size, block_size, 0, stream_interior>>>(
+        d_u, d_u_old, d_rhs, h_squared,
+        local_Nx_with_ghosts, local_Ny_with_ghosts, local_Nz_with_ghosts, iter,
+        d_block_max_diffs);
 
     // residual and error
     double residual = 0.0;
@@ -431,8 +435,6 @@ int main(int argc, char **argv)
     // Wait for communication to complete
     MPI_Waitall(req_count, reqs, MPI_STATUSES_IGNORE);
 
-    GPU_CHECK(cudaMemcpy(d_u_old, u_old, total_size * sizeof(double), cudaMemcpyHostToDevice));
-
     // Update solution
     // skip first and last point because of dirchlet bounds for x
     int lower_bound_inc = 0;
@@ -443,7 +445,8 @@ int main(int argc, char **argv)
     if (coords[0] == dims[0] - 1)
       upper_bound_dec = 1;
 
-    update_kernel<<<grid_size, block_size>>>(
+    GPU_CHECK(cudaMemcpyAsync(d_u_old, u_old, total_size * sizeof(double), cudaMemcpyHostToDevice, stream_boundary));
+    update_boundary_kernel<<<grid_size, block_size, 0, stream_boundary>>>(
         d_u, d_u_old, d_rhs, h_squared, lower_bound_inc, upper_bound_dec,
         local_Nx_with_ghosts, local_Ny_with_ghosts, local_Nz_with_ghosts, iter,
         d_block_max_diffs);
@@ -504,8 +507,8 @@ int main(int argc, char **argv)
   MPI_Allreduce(&computation_time, &global_time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
   // Sum up total FLOPs and bytes across all processes
-  double total_flops = iter * num_internal_points * flops_per_point;
-  double total_bytes = iter * num_internal_points * bytes_per_point;
+  long total_flops = long(iter) * long(num_internal_points) * long(flops_per_point);
+  long total_bytes = long(iter) * long(num_internal_points) * long(bytes_per_point);
 
   double global_init_time;
   double end_init_time = init_end_time - init_start_time;
@@ -520,11 +523,11 @@ int main(int argc, char **argv)
     std::cout << "L2 norm of the error: " << loss << "\n";
 
     // Compute operational intensity and achieved performance for initialization
-    double operational_intensity_init = init_flops / init_bytes;
+    double operational_intensity_init = static_cast<double>(init_flops) / init_bytes;
     double achieved_performance_init = init_flops / global_init_time;
 
     // Compute operational intensity and achieved performance
-    double operational_intensity = total_flops / total_bytes;
+    double operational_intensity = static_cast<double>(total_flops) / total_bytes;
     double achieved_performance = total_flops / global_time;
 
     // Write residual and error data to CSV
@@ -588,6 +591,9 @@ int main(int argc, char **argv)
   cudaFree(d_u_old);
   cudaFree(d_rhs);
   cudaFree(d_block_max_diffs);
+
+  cudaStreamDestroy(stream_interior);
+  cudaStreamDestroy(stream_boundary);
 
   MPI_Finalize();
   return 0;

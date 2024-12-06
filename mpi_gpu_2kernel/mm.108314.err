@@ -1,0 +1,103 @@
+Memory access fault by GPU node-4 (Agent handle: 0x113e8a0) on address 0x7f7d4b315000. Reason: Unknown.
+Memory access fault by GPU node-2 (Agent handle: 0x133d3f0) on address 0x7f4f8c914000. Reason: Unknown.
+Memory access fault by GPU node-2 (Agent handle: 0x21a93f0) on address 0x7f86937ff000. Reason: Unknown.
+Memory access fault by GPU node-5 (Agent handle: 0x1cac280) on address 0x7f0b64318000. Reason: Unknown.
+Memory access fault by GPU node-4 (Agent handle: 0x6f68a0) on address 0x7f8147714000. Reason: Unknown.
+[t008-005:397775] *** Process received signal ***
+[t008-005:397775] Signal: Aborted (6)
+[t008-005:397775] Signal code:  (-6)
+[t008-005:397775] [ 0] /lib64/libc.so.6(+0x54d90)[0x7f82a1019d90]
+[t008-005:397775] [ 1] /lib64/libc.so.6(+0xa154c)[0x7f82a106654c]
+[t008-005:397775] [ 2] /lib64/libc.so.6(raise+0x16)[0x7f82a1019ce6]
+[t008-005:397775] [ 3] /lib64/libc.so.6(abort+0xd3)[0x7f82a0fed7f3]
+[t008-005:397775] [ 4] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x7d09d)[0x7f8297fcf09d]
+[t008-005:397775] [ 5] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x79d69)[0x7f8297fcbd69]
+[t008-005:397775] [ 6] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x2aa17)[0x7f8297f7ca17]
+[t008-005:397775] [ 7] /lib64/libc.so.6(+0x9f802)[0x7f82a1064802]
+[t008-005:397775] [ 8] /lib64/libc.so.6(+0x3f450)[0x7f82a1004450]
+[t008-005:397775] *** End of error message ***
+[t008-005:397776] *** Process received signal ***
+[t008-005:397776] Signal: Aborted (6)
+[t008-005:397776] Signal code:  (-6)
+[t008-005:397779] *** Process received signal ***
+[t008-005:397779] Signal: Aborted (6)
+[t008-005:397779] Signal code:  (-6)
+[t008-005:397773] *** Process received signal ***
+[t008-005:397773] Signal: Aborted (6)
+[t008-005:397773] Signal code:  (-6)
+[t008-005:397776] [ 0] /lib64/libc.so.6(+0x54d90)[0x7f10f650dd90]
+[t008-005:397779] [ 0] /lib64/libc.so.6(+0x54d90)[0x7f869cad0d90]
+[t008-005:397776] [ 1] /lib64/libc.so.6(+0xa154c)[0x7f10f655a54c]
+[t008-005:397779] [ 1] /lib64/libc.so.6(+0xa154c)[0x7f869cb1d54c]
+[t008-005:397776] [ 2] /lib64/libc.so.6(raise+0x16)[0x7f10f650dce6]
+[t008-005:397779] [ 2] /lib64/libc.so.6(raise+0x16)[0x7f869cad0ce6]
+[t008-005:397773] [ 0] /lib64/libc.so.6(+0x54d90)[0x7f54e23cfd90]
+[t008-005:397776] [ 3] /lib64/libc.so.6(abort+0xd3)[0x7f10f64e17f3]
+[t008-005:397779] [ 3] /lib64/libc.so.6(abort+0xd3)[0x7f869caa47f3]
+[t008-005:397776] [ 4] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x7d09d)[0x7f10ed4c309d]
+[t008-005:397776] [ 5] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x79d69)[0x7f10ed4bfd69]
+[t008-005:397776] [ 6] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x2aa17)[0x7f10ed470a17]
+[t008-005:397779] [ 4] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x7d09d)[0x7f8693a8609d]
+[t008-005:397779] [ 5] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x79d69)[0x7f8693a82d69]
+[t008-005:397779] [ 6] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x2aa17)[0x7f8693a33a17]
+[t008-005:397773] [ 1] /lib64/libc.so.6(+0xa154c)[0x7f54e241c54c]
+[t008-005:397776] [ 7] /lib64/libc.so.6(+0x9f802)[0x7f10f6558802]
+[t008-005:397779] [ 7] /lib64/libc.so.6(+0x9f802)[0x7f869cb1b802]
+[t008-005:397773] [ 2] /lib64/libc.so.6(raise+0x16)[0x7f54e23cfce6]
+[t008-005:397776] [ 8] /lib64/libc.so.6(+0x3f450)[0x7f10f64f8450]
+[t008-005:397779] [ 8] /lib64/libc.so.6(+0x3f450)[0x7f869cabb450]
+[t008-005:397779] *** End of error message ***
+[t008-005:397776] *** End of error message ***
+[t008-005:397773] [ 3] /lib64/libc.so.6(abort+0xd3)[0x7f54e23a37f3]
+[t008-005:397773] [ 4] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x7d09d)[0x7f54d938509d]
+[t008-005:397773] [ 5] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x79d69)[0x7f54d9381d69]
+[t008-005:397773] [ 6] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x2aa17)[0x7f54d9332a17]
+[t008-005:397773] [ 7] /lib64/libc.so.6(+0x9f802)[0x7f54e241a802]
+[t008-005:397773] [ 8] /lib64/libc.so.6(+0x3f450)[0x7f54e23ba450]
+[t008-005:397773] *** End of error message ***
+[t008-005:397777] *** Process received signal ***
+[t008-005:397777] Signal: Aborted (6)
+[t008-005:397777] Signal code:  (-6)
+[t008-005:397777] [ 0] /lib64/libc.so.6(+0x54d90)[0x7f8c24fc9d90]
+[t008-005:397777] [ 1] /lib64/libc.so.6(+0xa154c)[0x7f8c2501654c]
+[t008-005:397777] [ 2] /lib64/libc.so.6(raise+0x16)[0x7f8c24fc9ce6]
+[t008-005:397777] [ 3] /lib64/libc.so.6(abort+0xd3)[0x7f8c24f9d7f3]
+[t008-005:397777] [ 4] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x7d09d)[0x7f8c1bf7f09d]
+[t008-005:397777] [ 5] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x79d69)[0x7f8c1bf7bd69]
+[t008-005:397777] [ 6] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x2aa17)[0x7f8c1bf2ca17]
+[t008-005:397777] [ 7] /lib64/libc.so.6(+0x9f802)[0x7f8c25014802]
+[t008-005:397777] [ 8] /lib64/libc.so.6(+0x3f450)[0x7f8c24fb4450]
+[t008-005:397777] *** End of error message ***
+Memory access fault by GPU node-3 (Agent handle: 0x15faea0) on address 0x7f24db314000. Reason: Unknown.
+Memory access fault by GPU node-3 (Agent handle: 0xf70ea0) on address 0x7fa8c1919000. Reason: Unknown.
+[t008-005:397778] *** Process received signal ***
+[t008-005:397778] Signal: Aborted (6)
+[t008-005:397778] Signal code:  (-6)
+[t008-005:397778] [ 0] /lib64/libc.so.6(+0x54d90)[0x7fae16d35d90]
+[t008-005:397778] [ 1] /lib64/libc.so.6(+0xa154c)[0x7fae16d8254c]
+[t008-005:397778] [ 2] /lib64/libc.so.6(raise+0x16)[0x7fae16d35ce6]
+[t008-005:397778] [ 3] /lib64/libc.so.6(abort+0xd3)[0x7fae16d097f3]
+[t008-005:397778] [ 4] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x7d09d)[0x7fae0dceb09d]
+[t008-005:397778] [ 5] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x79d69)[0x7fae0dce7d69]
+[t008-005:397778] [ 6] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x2aa17)[0x7fae0dc98a17]
+[t008-005:397778] [ 7] /lib64/libc.so.6(+0x9f802)[0x7fae16d80802]
+[t008-005:397778] [ 8] /lib64/libc.so.6(+0x3f450)[0x7fae16d20450]
+[t008-005:397778] *** End of error message ***
+[t008-005:397774] *** Process received signal ***
+[t008-005:397774] Signal: Aborted (6)
+[t008-005:397774] Signal code:  (-6)
+[t008-005:397774] [ 0] /lib64/libc.so.6(+0x54d90)[0x7f2a3175ad90]
+[t008-005:397774] [ 1] /lib64/libc.so.6(+0xa154c)[0x7f2a317a754c]
+[t008-005:397774] [ 2] /lib64/libc.so.6(raise+0x16)[0x7f2a3175ace6]
+[t008-005:397774] [ 3] /lib64/libc.so.6(abort+0xd3)[0x7f2a3172e7f3]
+[t008-005:397774] [ 4] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x7d09d)[0x7f2a2871009d]
+[t008-005:397774] [ 5] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x79d69)[0x7f2a2870cd69]
+[t008-005:397774] [ 6] /opt/rocm-6.2.1/lib/libhsa-runtime64.so.1(+0x2aa17)[0x7f2a286bda17]
+[t008-005:397774] [ 7] /lib64/libc.so.6(+0x9f802)[0x7f2a317a5802]
+[t008-005:397774] [ 8] /lib64/libc.so.6(+0x3f450)[0x7f2a31745450]
+[t008-005:397774] *** End of error message ***
+srun: error: t008-005: tasks 0-6: Aborted (core dumped)
+slurmstepd-t008-005: error:  mpi/pmix_v4: _errhandler: t008-005 [0]: pmixp_client_v2.c:211: Error handler invoked: status = -61, source = [slurm.pmix.108314.0:2]
+slurmstepd-t008-005: error: *** STEP 108314.0 ON t008-005 CANCELLED AT 2024-12-06T12:23:52 ***
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+srun: error: t008-005: task 7: Killed
