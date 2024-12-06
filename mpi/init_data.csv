@@ -1,2 +1,2 @@
 title,operational_intensity,achieved_performance,time,color
-MPI 3D np=8 -O2,3,0.000359696,0.00278012,darkslategrey
+MPI 3D np=8 -O2,3.9604,0.000369899,0.00270344,darkslategrey

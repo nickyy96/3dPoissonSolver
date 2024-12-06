@@ -5,6 +5,121 @@
 #include <mpi.h>
 #include <fstream>
 
+// Include HIP headers
+#include <hip/hip_runtime.h>
+
+// GPU error checking macro
+#define GPU_CHECK(error)                                                                         \
+  if (error != cudaSuccess)                                                                      \
+  {                                                                                              \
+    fprintf(stderr, "CUDA Error: %s at %s:%d\n", cudaGetErrorString(error), __FILE__, __LINE__); \
+    exit(EXIT_FAILURE);                                                                          \
+  }
+
+#define cudaMalloc hipMalloc
+#define cudaFree hipFree
+#define cudaMemcpy hipMemcpy
+#define cudaMemcpyAsync hipMemcpyAsync
+#define cudaStream_t hipStream_t
+#define cudaStreamCreate hipStreamCreate
+#define cudaStreamDestroy hipStreamDestroy
+#define cudaStreamSynchronize hipStreamSynchronize
+#define cudaDeviceSynchronize hipDeviceSynchronize
+#define cudaSetDevice hipSetDevice
+#define cudaGetDeviceCount hipGetDeviceCount
+#define cudaMemcpyHostToDevice hipMemcpyHostToDevice
+#define cudaMemcpyDeviceToHost hipMemcpyDeviceToHost
+#define cudaDeviceSynchronize hipDeviceSynchronize
+#define cudaEvent_t hipEvent_t
+#define cudaEventCreate hipEventCreate
+#define cudaEventDestroy hipEventDestroy
+#define cudaEventRecord hipEventRecord
+#define cudaEventSynchronize hipEventSynchronize
+#define cudaEventElapsedTime hipEventElapsedTime
+#define cudaError_t hipError_t
+#define cudaSuccess hipSuccess
+#define cudaGetErrorString hipGetErrorString
+#define cudaGetLastError hipGetLastError
+
+// Kernel to perform one iteration
+__global__ void update_kernel(
+    double *u_new, const double *u_old, const double *rhs,
+    double h_sq, int lower_bound_inc, int upper_bound_dec,
+    int n_global_x, int n_global_y, int n_global_z, int iter,
+    double *d_block_max_diffs)
+{
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  int j = blockIdx.y * blockDim.y + threadIdx.y;
+  int k = blockIdx.z * blockDim.z + threadIdx.z;
+
+  double local_diff = 0.0;
+
+  // internal points
+  if (i > (0 + lower_bound_inc) && i < (n_global_x - 1 - upper_bound_dec) &&
+      j > 0 && j < n_global_y - 1 &&
+      k > 0 && k < n_global_z - 1)
+  {
+    // index in the 1D array
+    int idx = i * (n_global_y * n_global_z) + j * n_global_z + k;
+
+    // red black
+    if ((i + j + k) % 2 != (iter % 2))
+    {
+      u_new[idx] = u_old[idx];
+    } else {
+      // indices of 6 neighbors
+      int idx_left = idx - 1;  // (i, j, k-1)
+      int idx_right = idx + 1; // (i, j, k+1)
+
+      int idx_down = idx - n_global_x; // (i, j-1, k)
+      int idx_up = idx + n_global_x;   // (i, j+1, k)
+
+      int idx_back = idx - (n_global_x * n_global_y);  // (i-1, j, k)
+      int idx_front = idx + (n_global_x * n_global_y); // (i+1, j, k)
+
+      double u_left = u_old[idx_left];
+      double u_right = u_old[idx_right];
+
+      double u_down = u_old[idx_down];
+      double u_up = u_old[idx_up];
+
+      double u_back = u_old[idx_back];
+      double u_front = u_old[idx_front];
+
+      double rhs_val = rhs[idx];
+      
+      double val = ((u_left + u_right) + (u_down + u_up) + (u_back + u_front) - rhs_val * h_sq) / 6.0;
+      local_diff = fabs(val - u_old[idx]);
+      u_new[idx] = val;
+    }
+  }
+
+  __shared__ double sdata[512];
+  int tid = threadIdx.z * blockDim.y * blockDim.x + threadIdx.y * blockDim.x + threadIdx.x;
+  sdata[tid] = local_diff;
+  __syncthreads();
+
+  int n = blockDim.x * blockDim.y * blockDim.z;
+  for (int s = n / 2; s > 0; s >>= 1)
+  {
+    if (tid < s)
+    {
+      double val_other = sdata[tid + s];
+      if (val_other > sdata[tid])
+      {
+        sdata[tid] = val_other;
+      }
+    }
+    __syncthreads();
+  }
+
+  if (tid == 0)
+  {
+    int block_idx = blockIdx.z * gridDim.y * gridDim.x + blockIdx.y * gridDim.x + blockIdx.x;
+    d_block_max_diffs[block_idx] = sdata[0];
+  }
+}
+
 int main(int argc, char **argv)
 {
   MPI_Init(&argc, &argv);
@@ -13,14 +128,23 @@ int main(int argc, char **argv)
   MPI_Comm_rank(MPI_COMM_WORLD, &my_rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
+  // init gpu device
+  int ndevices=0;
+  hipGetDeviceCount(&ndevices);
+
+  printf("ndevices = %d\n", ndevices);
+
+  int my_device = my_rank % ndevices;
+  hipSetDevice(my_device);
+
   // 3d constants
-  const int N = 100;
+  const int N = 1000;
   const double start = 0.0;
   const double end = 1.0;
   const double h = (end - start) / (N - 1);
   const double h_squared = h * h;
   const double tol = 1e-6;
-  const int max_iter = 100000;
+  const int max_iter = 20000;
   const double pi = acos(-1.0);
   const int n = 1, m = 1, l = 1;
 
@@ -141,8 +265,27 @@ int main(int argc, char **argv)
     }
   }
 
+  // device arrays
+  double *d_u, *d_u_old, *d_rhs, *d_block_max_diffs;
+  // allocate and copy
+  GPU_CHECK(cudaMalloc(&d_u, total_size * sizeof(double)));
+  GPU_CHECK(cudaMalloc(&d_u_old, total_size * sizeof(double)));
+  GPU_CHECK(cudaMalloc(&d_rhs, total_size * sizeof(double)));
+
+  GPU_CHECK(cudaMemcpy(d_u, u, total_size * sizeof(double), cudaMemcpyHostToDevice));
+  GPU_CHECK(cudaMemcpy(d_u_old, u_old, total_size * sizeof(double), cudaMemcpyHostToDevice));
+  GPU_CHECK(cudaMemcpy(d_rhs, rhs, total_size * sizeof(double), cudaMemcpyHostToDevice));
+
   // End init time
   double init_end_time = MPI_Wtime();
+
+  // Set up kernel launch parameters
+  dim3 block_size(10, 10, 10);
+  dim3 grid_size((local_Nx + block_size.x - 1) / block_size.x,
+                 (local_Ny + block_size.y - 1) / block_size.y,
+                 (local_Nz + block_size.z - 1) / block_size.z);
+  int num_blocks = grid_size.x * grid_size.y * grid_size.z;
+  GPU_CHECK(cudaMalloc(&d_block_max_diffs, num_blocks * sizeof(double)));
 
   // MPI datatypes for face exchanges
   MPI_Datatype yz_plane_type;
@@ -158,13 +301,13 @@ int main(int argc, char **argv)
   MPI_Type_commit(&xy_plane_type);
 
   // Performance Metrics (exported to CSV)
-  long num_internal_points = N * N * (N - 2);
-  long flops_per_point = 13;                 // 7 adds, 3 subtractions, 2 multiplication, 1 division
-  long bytes_per_point = 8 * sizeof(double); // reads and writes from red black (averaged at 7.5 and rounded up)
+  int num_internal_points = N * N * (N - 2);
+  int flops_per_point = 13;                 // 7 adds, 3 subtractions, 2 multiplication, 1 division
+  int bytes_per_point = 8 * sizeof(double); // reads and writes from red black (averaged at 7.5 and rounded up)
 
   // Iterative update
   double diff = std::numeric_limits<double>::infinity();
-  long iter = 0;
+  int iter = 0;
 
   double start_time = MPI_Wtime();
 
@@ -213,6 +356,8 @@ int main(int argc, char **argv)
     // Wait for communication to complete
     MPI_Waitall(req_count, reqs, MPI_STATUSES_IGNORE);
 
+    GPU_CHECK(cudaMemcpy(d_u_old, u_old, total_size * sizeof(double), cudaMemcpyHostToDevice));
+
     // Update solution
     // skip first and last point because of dirchlet bounds for x
     int lower_bound_inc = 0;
@@ -223,47 +368,69 @@ int main(int argc, char **argv)
     if (coords[0] == dims[0] - 1)
       upper_bound_dec = 1;
 
-    for (int i = 1 + lower_bound_inc; i <= local_Nx - upper_bound_dec; ++i)
+    update_kernel<<<grid_size, block_size>>>(
+        d_u, d_u_old, d_rhs, h_squared, lower_bound_inc, upper_bound_dec,
+        local_Nx_with_ghosts, local_Ny_with_ghosts, local_Nz_with_ghosts, iter,
+        d_block_max_diffs);
+
+    // for (int i = 1 + lower_bound_inc; i <= local_Nx - upper_bound_dec; ++i)
+    // {
+    //   for (int j = 1; j <= local_Ny; ++j)
+    //   {
+    //     for (int k = 1; k <= local_Nz; ++k)
+    //     {
+    //       // red black ordering
+    //       if ((i + j + k) % 2 == (iter % 2))
+    //       {
+    //         double x_update = (u_old[idx(i - 1, j, k)] + u_old[idx(i + 1, j, k)]);
+    //         double y_update = (u_old[idx(i, j - 1, k)] + u_old[idx(i, j + 1, k)]);
+    //         double z_update = (u_old[idx(i, j, k - 1)] + u_old[idx(i, j, k + 1)]);
+
+    //         double val = (x_update + y_update + z_update - rhs[idx(i, j, k)] * (h_squared)) / 6.0;
+
+    //         double d = std::fabs(val - u_old[idx(i, j, k)]);
+    //         if (d > diff)
+    //           diff = d;
+    //         u[idx(i, j, k)] = val;
+    //       }
+    //       else
+    //       {
+    //         u[idx(i, j, k)] = u_old[idx(i, j, k)];
+    //       }
+
+    //       if (my_rank == 0)
+    //       {
+    //         // update residual and error
+    //         double update_diff = u[idx(i, j, k)] - exact[idx(i, j, k)];
+    //         residual += update_diff;
+    //         error += update_diff * update_diff;
+    //       }
+    //     }
+    //   }
+    // }
+
+    cudaDeviceSynchronize();
+
+    double *block_max_diffs = new double[num_blocks];
+    cudaMemcpy(block_max_diffs, d_block_max_diffs, num_blocks * sizeof(double), cudaMemcpyDeviceToHost);
+
+    // reduce
+    for (int i = 0; i < num_blocks; i++)
     {
-      for (int j = 1; j <= local_Ny; ++j)
-      {
-        for (int k = 1; k <= local_Nz; ++k)
-        {
-          // red black ordering
-          if ((i + j + k) % 2 == (iter % 2))
-          {
-            double x_update = (u_old[idx(i - 1, j, k)] + u_old[idx(i + 1, j, k)]);
-            double y_update = (u_old[idx(i, j - 1, k)] + u_old[idx(i, j + 1, k)]);
-            double z_update = (u_old[idx(i, j, k - 1)] + u_old[idx(i, j, k + 1)]);
-
-            double val = (x_update + y_update + z_update - rhs[idx(i, j, k)] * (h_squared)) / 6.0;
-
-            double d = std::fabs(val - u_old[idx(i, j, k)]);
-            if (d > diff)
-              diff = d;
-            u[idx(i, j, k)] = val;
-          }
-          else
-          {
-            u[idx(i, j, k)] = u_old[idx(i, j, k)];
-          }
-
-          if (my_rank == 0)
-          {
-            // update residual and error
-            double update_diff = u[idx(i, j, k)] - exact[idx(i, j, k)];
-            residual += update_diff;
-            error += update_diff * update_diff;
-          }
-        }
-      }
+      if (block_max_diffs[i] > diff)
+        // printf("diff: %f\n", block_max_diffs[i]);
+        diff = block_max_diffs[i];
     }
+    delete[] block_max_diffs;
+
+    // copy data
+    cudaMemcpy(u, d_u, total_size * sizeof(double), cudaMemcpyDeviceToHost);
 
     if (my_rank == 0)
     {
       // Normalize by the number of points
-      avg_residual_per_iter.push_back(residual / num_internal_points);
-      avg_error_per_iter.push_back(std::sqrt(error / num_internal_points));
+      // avg_residual_per_iter.push_back(residual / num_internal_points);
+      // avg_error_per_iter.push_back(std::sqrt(error / num_internal_points));
     }
 
     // Compute global maximum difference
@@ -298,8 +465,8 @@ int main(int argc, char **argv)
   MPI_Allreduce(&computation_time, &global_time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
   // Sum up total FLOPs and bytes across all processes
-  long total_flops = long(iter) * long(num_internal_points) * long(flops_per_point);
-  long total_bytes = long(iter) * long(num_internal_points) * long(bytes_per_point);
+  double total_flops = iter * num_internal_points * flops_per_point;
+  double total_bytes = iter * num_internal_points * bytes_per_point;
 
   double global_init_time;
   double end_init_time = init_end_time - init_start_time;
@@ -314,12 +481,12 @@ int main(int argc, char **argv)
     std::cout << "L2 norm of the error: " << loss << "\n";
 
     // Compute operational intensity and achieved performance for initialization
-    double operational_intensity_init = static_cast<double>(init_flops) / init_bytes;
-    int achieved_performance_init = init_flops / global_init_time;
+    double operational_intensity_init = init_flops / init_bytes;
+    double achieved_performance_init = init_flops / global_init_time;
 
     // Compute operational intensity and achieved performance
-    double operational_intensity = static_cast<double>(total_flops)/ total_bytes;
-    long achieved_performance = total_flops / global_time;
+    double operational_intensity = total_flops / total_bytes;
+    double achieved_performance = total_flops / global_time;
 
     // Write residual and error data to CSV
     std::ofstream csv_file_residuals;
@@ -377,6 +544,11 @@ int main(int argc, char **argv)
   delete[] u_old;
   delete[] rhs;
   delete[] exact;
+
+  cudaFree(d_u);
+  cudaFree(d_u_old);
+  cudaFree(d_rhs);
+  cudaFree(d_block_max_diffs);
 
   MPI_Finalize();
   return 0;
