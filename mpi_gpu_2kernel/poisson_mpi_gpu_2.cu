@@ -348,12 +348,16 @@ int main(int argc, char **argv)
   double init_end_time = MPI_Wtime();
 
   // Set up kernel launch parameters
-  dim3 block_size(10, 10, 10);
+  dim3 block_size(8, 8, 8);
   dim3 grid_size((local_Nx + block_size.x - 1) / block_size.x,
                  (local_Ny + block_size.y - 1) / block_size.y,
                  (local_Nz + block_size.z - 1) / block_size.z);
   int num_blocks = grid_size.x * grid_size.y * grid_size.z;
   GPU_CHECK(cudaMalloc(&d_block_max_diffs, num_blocks * sizeof(double)));
+
+  cudaStream_t stream_interior, stream_boundary;
+  cudaStreamCreate(&stream_interior);
+  cudaStreamCreate(&stream_boundary);
 
   // MPI datatypes for face exchanges
   MPI_Datatype yz_plane_type;
@@ -387,6 +391,9 @@ int main(int argc, char **argv)
     {
       u_old[i] = u[i];
     }
+
+    // Update interior points immediately
+    GPU_CHECK(cudaMemcpyAsync(d_u_old, u_old, total_size * sizeof(double), cudaMemcpyHostToDevice));
 
     // residual and error
     double residual = 0.0;

@@ -1,14 +1,6 @@
-ndevices = 4
 Computation took 5678.94 seconds.
 Converged in 20000 iterations.
 L2 norm of the error: 0.332722
-ndevices = 4
-ndevices = 4
-ndevices = 4
-ndevices = 4
-ndevices = 4
-ndevices = 4
-ndevices = 4
 All Steps completed.
 
 ----------------------------------------------------------------------

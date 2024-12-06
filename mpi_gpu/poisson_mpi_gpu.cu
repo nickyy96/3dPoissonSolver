@@ -71,11 +71,11 @@ __global__ void update_kernel(
       int idx_left = idx - 1;  // (i, j, k-1)
       int idx_right = idx + 1; // (i, j, k+1)
 
-      int idx_down = idx - n_global_x; // (i, j-1, k)
-      int idx_up = idx + n_global_x;   // (i, j+1, k)
+      int idx_down = idx - n_global_z; // (i, j-1, k)
+      int idx_up = idx + n_global_z;   // (i, j+1, k)
 
-      int idx_back = idx - (n_global_x * n_global_y);  // (i-1, j, k)
-      int idx_front = idx + (n_global_x * n_global_y); // (i+1, j, k)
+      int idx_back = idx - (n_global_y * n_global_z);  // (i-1, j, k)
+      int idx_front = idx + (n_global_y * n_global_z); // (i+1, j, k)
 
       double u_left = u_old[idx_left];
       double u_right = u_old[idx_right];
@@ -131,8 +131,6 @@ int main(int argc, char **argv)
   // init gpu device
   int ndevices=0;
   hipGetDeviceCount(&ndevices);
-
-  printf("ndevices = %d\n", ndevices);
 
   int my_device = my_rank % ndevices;
   hipSetDevice(my_device);
@@ -280,7 +278,7 @@ int main(int argc, char **argv)
   double init_end_time = MPI_Wtime();
 
   // Set up kernel launch parameters
-  dim3 block_size(10, 10, 10);
+  dim3 block_size(8, 8, 8);
   dim3 grid_size((local_Nx + block_size.x - 1) / block_size.x,
                  (local_Ny + block_size.y - 1) / block_size.y,
                  (local_Nz + block_size.z - 1) / block_size.z);
