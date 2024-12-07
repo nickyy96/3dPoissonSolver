@@ -71,7 +71,7 @@ __global__ void update_boundary_kernel(
 
   bool on_boundary = false;
   // x boundary
-  if ((i == 1) || i == n_global_x - 2)
+  if (i == 1 || i == n_global_x - 2)
     on_boundary = true;
   // y
   if (j == 1 || j == n_global_y - 2)
@@ -144,7 +144,7 @@ __global__ void update_boundary_kernel(
 
   if (tid == 0)
   {
-    int block_idx = blockIdx.z * (gridDim.y * gridDim.x) + blockIdx.y * gridDim.x + blockIdx.x;
+    int block_idx = blockIdx.z * gridDim.y * gridDim.x + blockIdx.y * gridDim.x + blockIdx.x;
     d_block_max_diffs[block_idx] = sdata[0];
   }
 }
