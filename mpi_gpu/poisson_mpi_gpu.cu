@@ -63,10 +63,8 @@ __global__ void update_kernel(
     int idx = i * (n_global_y * n_global_z) + j * n_global_z + k;
 
     // red black
-    if ((i + j + k) % 2 != (iter % 2))
+    if ((i + j + k) % 2 == (iter % 2))
     {
-      u_new[idx] = u_old[idx];
-    } else {
       // indices of 6 neighbors
       int idx_left = idx - 1;  // (i, j, k-1)
       int idx_right = idx + 1; // (i, j, k+1)
@@ -91,6 +89,10 @@ __global__ void update_kernel(
       double val = ((u_left + u_right) + (u_down + u_up) + (u_back + u_front) - rhs_val * h_sq) / 6.0;
       local_diff = fabs(val - u_old[idx]);
       u_new[idx] = val;
+    }
+    else
+    {
+      u_new[idx] = u_old[idx];
     }
   }
 

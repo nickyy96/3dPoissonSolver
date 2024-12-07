@@ -52,36 +52,77 @@ __global__ void update_boundary_kernel(
   int j = blockIdx.y * blockDim.y + threadIdx.y;
   int k = blockIdx.z * blockDim.z + threadIdx.z;
 
-  if ((i == 1 && lower_bound_inc) || (i == n_global_x - 2 && upper_bound_dec))
-    return;
-
-  int num_boundaries = (j == 1 || j == n_global_y - 2) + (k == 1 || k == n_global_z - 2);
-  if (num_boundaries < 2)
-    return;
-
   double local_diff = 0.0;
-  int idx = i * (n_global_y * n_global_z) + j * n_global_z + k;
+  bool compute = true;
 
-  if ((i + j + k) % 2 == (iter % 2))
+  // internal points
+  if (i <= 0 || i >= n_global_x - 1 ||
+      j <= 0 || j >= n_global_y - 1 ||
+      k <= 0 || k >= n_global_z - 1)
   {
-    double u_left = u_old[idx - 1];
-    double u_right = u_old[idx + 1];
-    double u_down = u_old[idx - n_global_z];
-    double u_up = u_old[idx + n_global_z];
-    double u_back = u_old[idx - (n_global_x * n_global_y)];
-    double u_front = u_old[idx + (n_global_x * n_global_y)];
-    double rhs_val = rhs[idx];
-
-    double val = ((u_left + u_right) + (u_down + u_up) + (u_back + u_front) - rhs_val * h_sq) / 6.0;
-    local_diff = fabs(val - u_old[idx]);
-    u_new[idx] = val;
-  }
-  else
-  {
-    u_new[idx] = u_old[idx];
+    compute = false;
   }
 
-  // Reduction for max diff
+  // enforce Dirichlet boundaries in x-direction:
+  if (compute && (i == 1 && lower_bound_inc))
+    compute = false;
+  if (compute && (i == n_global_x - 2 && upper_bound_dec))
+    compute = false;
+
+  bool on_boundary = false;
+  // x boundary
+  if ((i == 1) || i == n_global_x - 2)
+    on_boundary = true;
+  // y
+  if (j == 1 || j == n_global_y - 2)
+    on_boundary = true;
+  // z
+  if (k == 1 || k == n_global_z - 2)
+    on_boundary = true;
+
+  // no boundary
+  if (compute && !on_boundary)
+    compute = false;
+
+  if (compute)
+  {
+    // index in the 1D array
+    int idx = i * (n_global_y * n_global_z) + j * n_global_z + k;
+
+    // red black
+    if ((i + j + k) % 2 == (iter % 2))
+    {
+      // indices of 6 neighbors
+      int idx_left = idx - 1;  // (i, j, k-1)
+      int idx_right = idx + 1; // (i, j, k+1)
+
+      int idx_down = idx - n_global_z; // (i, j-1, k)
+      int idx_up = idx + n_global_z;   // (i, j+1, k)
+
+      int idx_back = idx - (n_global_y * n_global_z);  // (i-1, j, k)
+      int idx_front = idx + (n_global_y * n_global_z); // (i+1, j, k)
+
+      double u_left = u_old[idx_left];
+      double u_right = u_old[idx_right];
+
+      double u_down = u_old[idx_down];
+      double u_up = u_old[idx_up];
+
+      double u_back = u_old[idx_back];
+      double u_front = u_old[idx_front];
+
+      double rhs_val = rhs[idx];
+
+      double val = ((u_left + u_right) + (u_down + u_up) + (u_back + u_front) - rhs_val * h_sq) / 6.0;
+      local_diff = fabs(val - u_old[idx]);
+      u_new[idx] = val;
+    }
+    else
+    {
+      u_new[idx] = u_old[idx];
+    }
+  }
+
   __shared__ double sdata[512];
   int tid = threadIdx.z * blockDim.y * blockDim.x + threadIdx.y * blockDim.x + threadIdx.x;
   sdata[tid] = local_diff;
@@ -129,21 +170,17 @@ __global__ void update_interior_kernel(
     int idx = i * (n_global_y * n_global_z) + j * n_global_z + k;
 
     // red black
-    if ((i + j + k) % 2 != (iter % 2))
-    {
-      u_new[idx] = u_old[idx];
-    }
-    else
+    if ((i + j + k) % 2 == (iter % 2))
     {
       // indices of 6 neighbors
       int idx_left = idx - 1;  // (i, j, k-1)
       int idx_right = idx + 1; // (i, j, k+1)
 
-      int idx_down = idx - n_global_x; // (i, j-1, k)
-      int idx_up = idx + n_global_x;   // (i, j+1, k)
+      int idx_down = idx - n_global_z; // (i, j-1, k)
+      int idx_up = idx + n_global_z;   // (i, j+1, k)
 
-      int idx_back = idx - (n_global_x * n_global_y);  // (i-1, j, k)
-      int idx_front = idx + (n_global_x * n_global_y); // (i+1, j, k)
+      int idx_back = idx - (n_global_y * n_global_z);  // (i-1, j, k)
+      int idx_front = idx + (n_global_y * n_global_z); // (i+1, j, k)
 
       double u_left = u_old[idx_left];
       double u_right = u_old[idx_right];
@@ -159,6 +196,10 @@ __global__ void update_interior_kernel(
       double val = ((u_left + u_right) + (u_down + u_up) + (u_back + u_front) - rhs_val * h_sq) / 6.0;
       local_diff = fabs(val - u_old[idx]);
       u_new[idx] = val;
+    }
+    else
+    {
+      u_new[idx] = u_old[idx];
     }
   }
 
@@ -199,8 +240,6 @@ int main(int argc, char **argv)
   // init gpu device
   int ndevices = 0;
   hipGetDeviceCount(&ndevices);
-
-  printf("ndevices = %d\n", ndevices);
 
   int my_device = my_rank % ndevices;
   hipSetDevice(my_device);
@@ -334,7 +373,7 @@ int main(int argc, char **argv)
   }
 
   // device arrays
-  double *d_u, *d_u_old, *d_rhs, *d_block_max_diffs;
+  double *d_u, *d_u_old, *d_rhs, *d_block_max_diffs, *d_block_max_diffs_boundary;
   // allocate and copy
   GPU_CHECK(cudaMalloc(&d_u, total_size * sizeof(double)));
   GPU_CHECK(cudaMalloc(&d_u_old, total_size * sizeof(double)));
@@ -353,7 +392,9 @@ int main(int argc, char **argv)
                  (local_Ny + block_size.y - 1) / block_size.y,
                  (local_Nz + block_size.z - 1) / block_size.z);
   int num_blocks = grid_size.x * grid_size.y * grid_size.z;
+
   GPU_CHECK(cudaMalloc(&d_block_max_diffs, num_blocks * sizeof(double)));
+  GPU_CHECK(cudaMalloc(&d_block_max_diffs_boundary, num_blocks * sizeof(double)));
 
   cudaStream_t stream_interior, stream_boundary;
   cudaStreamCreate(&stream_interior);
@@ -365,6 +406,9 @@ int main(int argc, char **argv)
   MPI_Type_commit(&yz_plane_type);
 
   MPI_Datatype xz_plane_type;
+  // local_nx: number of chunks along i dimension
+  // local_nz: block length (contiguous elements on k dimension)
+  // local_ny_with_ghosts * local_nz_with_ghosts: stride between chunks
   MPI_Type_vector(local_Nx, local_Nz, local_Ny_with_ghosts * local_Nz_with_ghosts, MPI_DOUBLE, &xz_plane_type);
   MPI_Type_commit(&xz_plane_type);
 
@@ -398,6 +442,9 @@ int main(int argc, char **argv)
         d_u, d_u_old, d_rhs, h_squared,
         local_Nx_with_ghosts, local_Ny_with_ghosts, local_Nz_with_ghosts, iter,
         d_block_max_diffs);
+
+    double *block_max_diffs = new double[num_blocks];
+    GPU_CHECK(cudaMemcpyAsync(block_max_diffs, d_block_max_diffs, num_blocks * sizeof(double), cudaMemcpyDeviceToHost, stream_interior));
 
     // residual and error
     double residual = 0.0;
@@ -449,31 +496,30 @@ int main(int argc, char **argv)
     update_boundary_kernel<<<grid_size, block_size, 0, stream_boundary>>>(
         d_u, d_u_old, d_rhs, h_squared, lower_bound_inc, upper_bound_dec,
         local_Nx_with_ghosts, local_Ny_with_ghosts, local_Nz_with_ghosts, iter,
-        d_block_max_diffs);
+        d_block_max_diffs_boundary);
+
+    double *block_max_diffs_boundary = new double[num_blocks];
+    GPU_CHECK(cudaMemcpyAsync(block_max_diffs_boundary, d_block_max_diffs_boundary, num_blocks * sizeof(double), cudaMemcpyDeviceToHost, stream_boundary));
 
     cudaDeviceSynchronize();
-
-    double *block_max_diffs = new double[num_blocks];
-    cudaMemcpy(block_max_diffs, d_block_max_diffs, num_blocks * sizeof(double), cudaMemcpyDeviceToHost);
 
     // reduce
     for (int i = 0; i < num_blocks; i++)
     {
       if (block_max_diffs[i] > diff)
-        // printf("diff: %f\n", block_max_diffs[i]);
         diff = block_max_diffs[i];
     }
+
+    for (int i = 0; i < num_blocks; i++)
+    {
+      if (block_max_diffs_boundary[i] > diff)
+        diff = block_max_diffs_boundary[i];
+    }
     delete[] block_max_diffs;
+    delete[] block_max_diffs_boundary;
 
     // copy data
     cudaMemcpy(u, d_u, total_size * sizeof(double), cudaMemcpyDeviceToHost);
-
-    if (my_rank == 0)
-    {
-      // Normalize by the number of points
-      // avg_residual_per_iter.push_back(residual / num_internal_points);
-      // avg_error_per_iter.push_back(std::sqrt(error / num_internal_points));
-    }
 
     // Compute global maximum difference
     double global_diff;

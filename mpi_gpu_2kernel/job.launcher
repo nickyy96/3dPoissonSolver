@@ -15,8 +15,8 @@
 
 module load openmpi4/4.1.5
 
-# srun rocprof --hip-trace ./task
-srun ./task
+srun rocprof --hip-trace ./task
+# srun ./task
 
 # mpirun -np 8 rocprof --hip-trace ./task
 echo "All Steps completed."
