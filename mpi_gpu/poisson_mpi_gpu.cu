@@ -90,10 +90,6 @@ __global__ void update_kernel(
       local_diff = fabs(val - u_old[idx]);
       u_new[idx] = val;
     }
-    else
-    {
-      u_new[idx] = u_old[idx];
-    }
   }
 
   __shared__ double sdata[512];
@@ -315,6 +311,11 @@ int main(int argc, char **argv)
   {
     diff = 0.0;
 
+    // swap pointers
+    double *temp = u_old;
+    u_old = u;
+    u = temp;
+
     for (int i = 0; i < total_size; i++)
     {
       u_old[i] = u[i];
@@ -382,7 +383,6 @@ int main(int argc, char **argv)
     for (int i = 0; i < num_blocks; i++)
     {
       if (block_max_diffs[i] > diff)
-        // printf("diff: %f\n", block_max_diffs[i]);
         diff = block_max_diffs[i];
     }
     delete[] block_max_diffs;

@@ -117,10 +117,6 @@ __global__ void update_boundary_kernel(
       local_diff = fabs(val - u_old[idx]);
       u_new[idx] = val;
     }
-    else
-    {
-      u_new[idx] = u_old[idx];
-    }
   }
 
   __shared__ double sdata[512];
@@ -196,10 +192,6 @@ __global__ void update_interior_kernel(
       double val = ((u_left + u_right) + (u_down + u_up) + (u_back + u_front) - rhs_val * h_sq) / 6.0;
       local_diff = fabs(val - u_old[idx]);
       u_new[idx] = val;
-    }
-    else
-    {
-      u_new[idx] = u_old[idx];
     }
   }
 
@@ -431,10 +423,10 @@ int main(int argc, char **argv)
   {
     diff = 0.0;
 
-    for (int i = 0; i < total_size; i++)
-    {
-      u_old[i] = u[i];
-    }
+    // point swap
+    double *temp = u_old;
+    u_old = u;
+    u = temp;
 
     // Update interior points immediately
     GPU_CHECK(cudaMemcpyAsync(d_u_old, u_old, total_size * sizeof(double), cudaMemcpyHostToDevice, stream_interior));
