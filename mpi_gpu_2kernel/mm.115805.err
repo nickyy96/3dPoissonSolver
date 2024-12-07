@@ -1,0 +1,58 @@
+Traceback (most recent call last):
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/tblextr.py", line 1129, in <module>
+    hip_trace_found = fill_api_db("HIP", db, indir, "hip", HIP_PID, OPS_PID, [], {}, 1)
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/tblextr.py", line 516, in fill_api_db
+    table_handle = db.add_table(table_name, api_table_descr)
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/sqlitedb.py", line 52, in add_table
+    cursor.execute(stm)
+sqlite3.OperationalError: table HIP already exists
+srun: error: t008-001: task 5: Exited with exit code 1
+Traceback (most recent call last):
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/tblextr.py", line 1129, in <module>
+    hip_trace_found = fill_api_db("HIP", db, indir, "hip", HIP_PID, OPS_PID, [], {}, 1)
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/tblextr.py", line 516, in fill_api_db
+    table_handle = db.add_table(table_name, api_table_descr)
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/sqlitedb.py", line 52, in add_table
+    cursor.execute(stm)
+sqlite3.OperationalError: database is locked
+Traceback (most recent call last):
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/tblextr.py", line 1129, in <module>
+    hip_trace_found = fill_api_db("HIP", db, indir, "hip", HIP_PID, OPS_PID, [], {}, 1)
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/tblextr.py", line 516, in fill_api_db
+    table_handle = db.add_table(table_name, api_table_descr)
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/sqlitedb.py", line 52, in add_table
+    cursor.execute(stm)
+sqlite3.OperationalError: database is locked
+Traceback (most recent call last):
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/tblextr.py", line 1129, in <module>
+    hip_trace_found = fill_api_db("HIP", db, indir, "hip", HIP_PID, OPS_PID, [], {}, 1)
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/tblextr.py", line 516, in fill_api_db
+    table_handle = db.add_table(table_name, api_table_descr)
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/sqlitedb.py", line 52, in add_table
+    cursor.execute(stm)
+sqlite3.OperationalError: database is locked
+Traceback (most recent call last):
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/tblextr.py", line 1129, in <module>
+    hip_trace_found = fill_api_db("HIP", db, indir, "hip", HIP_PID, OPS_PID, [], {}, 1)
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/tblextr.py", line 516, in fill_api_db
+    table_handle = db.add_table(table_name, api_table_descr)
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/sqlitedb.py", line 52, in add_table
+    cursor.execute(stm)
+sqlite3.OperationalError: database is locked
+Traceback (most recent call last):
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/tblextr.py", line 1129, in <module>
+    hip_trace_found = fill_api_db("HIP", db, indir, "hip", HIP_PID, OPS_PID, [], {}, 1)
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/tblextr.py", line 516, in fill_api_db
+Traceback (most recent call last):
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/tblextr.py", line 1129, in <module>
+    table_handle = db.add_table(table_name, api_table_descr)
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/sqlitedb.py", line 52, in add_table
+    cursor.execute(stm)
+sqlite3.OperationalError: database is locked
+    hip_trace_found = fill_api_db("HIP", db, indir, "hip", HIP_PID, OPS_PID, [], {}, 1)
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/tblextr.py", line 516, in fill_api_db
+    table_handle = db.add_table(table_name, api_table_descr)
+  File "/opt/rocm-6.2.1/libexec/rocprofiler/sqlitedb.py", line 52, in add_table
+    cursor.execute(stm)
+sqlite3.OperationalError: database is locked
+srun: error: t008-001: tasks 0-4,7: Exited with exit code 1

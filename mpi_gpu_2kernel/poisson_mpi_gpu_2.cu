@@ -152,15 +152,15 @@ __global__ void update_interior_kernel(
     int n_global_x, int n_global_y, int n_global_z, int iter,
     double *d_block_max_diffs)
 {
-  int i = blockIdx.x * blockDim.x + threadIdx.x;
-  int j = blockIdx.y * blockDim.y + threadIdx.y;
-  int k = blockIdx.z * blockDim.z + threadIdx.z;
+  int i = blockIdx.x * blockDim.x + threadIdx.x + 2;
+  int j = blockIdx.y * blockDim.y + threadIdx.y + 2;
+  int k = blockIdx.z * blockDim.z + threadIdx.z + 2;
 
   double local_diff = 0.0;
 
-  if (i > 1 && i < n_global_x - 2 &&
-      j > 1 && j < n_global_y - 2 &&
-      k > 1 && k < n_global_z - 2)
+  if (i < n_global_x - 2 &&
+      j < n_global_y - 2 &&
+      k < n_global_z - 2)
   {
     // index in the 1D array
     int idx = i * (n_global_y * n_global_z) + j * n_global_z + k;
@@ -379,6 +379,11 @@ int main(int argc, char **argv)
   double init_end_time = MPI_Wtime();
 
   // Set up kernel launch parameters
+  dim3 interior_block_size(8, 8, 8);
+  dim3 interior_grid_size(((local_Nx - 2) + interior_block_size.x - 1) / interior_block_size.x,
+                          ((local_Ny - 2) + interior_block_size.y - 1) / interior_block_size.y,
+                          ((local_Nz - 2) + interior_block_size.z - 1) / interior_block_size.z);
+
   dim3 block_size(8, 8, 8);
   dim3 grid_size((local_Nx + block_size.x - 1) / block_size.x,
                  (local_Ny + block_size.y - 1) / block_size.y,
@@ -393,8 +398,12 @@ int main(int argc, char **argv)
   cudaStreamCreate(&stream_boundary);
 
   // MPI datatypes for face exchanges
+  int sizes[3] = {local_Nx_with_ghosts, local_Ny_with_ghosts, local_Nz_with_ghosts};
+  int subsizes[3] = {1, local_Ny, local_Nz};
+  int starts[3] = {0, 0, 0};
+
   MPI_Datatype yz_plane_type;
-  MPI_Type_contiguous(local_Ny * local_Nz, MPI_DOUBLE, &yz_plane_type);
+  MPI_Type_create_subarray(3, sizes, subsizes, starts, MPI_ORDER_C, MPI_DOUBLE, &yz_plane_type);
   MPI_Type_commit(&yz_plane_type);
 
   MPI_Datatype xz_plane_type;
@@ -430,7 +439,7 @@ int main(int argc, char **argv)
 
     // Update interior points immediately
     GPU_CHECK(cudaMemcpyAsync(d_u_old, u_old, total_size * sizeof(double), cudaMemcpyHostToDevice, stream_interior));
-    update_interior_kernel<<<grid_size, block_size, 0, stream_interior>>>(
+    update_interior_kernel<<<interior_grid_size, interior_block_size, 0, stream_interior>>>(
         d_u, d_u_old, d_rhs, h_squared,
         local_Nx_with_ghosts, local_Ny_with_ghosts, local_Nz_with_ghosts, iter,
         d_block_max_diffs);
