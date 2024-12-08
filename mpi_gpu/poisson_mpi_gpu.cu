@@ -321,11 +321,6 @@ int main(int argc, char **argv)
     u_old = u;
     u = temp;
 
-    for (int i = 0; i < total_size; i++)
-    {
-      u_old[i] = u[i];
-    }
-
     // residual and error
     double residual = 0.0;
     double error = 0.0;
