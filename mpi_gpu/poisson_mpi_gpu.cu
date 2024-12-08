@@ -43,21 +43,21 @@
 
 // Kernel to perform one iteration
 __global__ void update_kernel(
-    double *u_new, const double *u_old, const double *rhs,
+    double *u, const double *rhs,
     double h_sq, int lower_bound_inc, int upper_bound_dec,
     int n_global_x, int n_global_y, int n_global_z, int iter,
     double *d_block_max_diffs)
 {
-  int i = blockIdx.x * blockDim.x + threadIdx.x;
-  int j = blockIdx.y * blockDim.y + threadIdx.y;
-  int k = blockIdx.z * blockDim.z + threadIdx.z;
+  int i = blockIdx.x * blockDim.x + threadIdx.x + 1;
+  int j = blockIdx.y * blockDim.y + threadIdx.y + 1;
+  int k = blockIdx.z * blockDim.z + threadIdx.z + 1;
 
   double local_diff = 0.0;
 
   // internal points
-  if (i > (0 + lower_bound_inc) && i < (n_global_x - 1 - upper_bound_dec) &&
-      j > 0 && j < n_global_y - 1 &&
-      k > 0 && k < n_global_z - 1)
+  if (i > lower_bound_inc && i < (n_global_x - 1 - upper_bound_dec) &&
+      j < n_global_y - 1 &&
+      k < n_global_z - 1)
   {
     // index in the 1D array
     int idx = i * (n_global_y * n_global_z) + j * n_global_z + k;
@@ -75,20 +75,20 @@ __global__ void update_kernel(
       int idx_back = idx - (n_global_y * n_global_z);  // (i-1, j, k)
       int idx_front = idx + (n_global_y * n_global_z); // (i+1, j, k)
 
-      double u_left = u_old[idx_left];
-      double u_right = u_old[idx_right];
+      double u_left = u[idx_left];
+      double u_right = u[idx_right];
 
-      double u_down = u_old[idx_down];
-      double u_up = u_old[idx_up];
+      double u_down = u[idx_down];
+      double u_up = u[idx_up];
 
-      double u_back = u_old[idx_back];
-      double u_front = u_old[idx_front];
+      double u_back = u[idx_back];
+      double u_front = u[idx_front];
 
       double rhs_val = rhs[idx];
       
       double val = ((u_left + u_right) + (u_down + u_up) + (u_back + u_front) - rhs_val * h_sq) / 6.0;
-      local_diff = fabs(val - u_old[idx]);
-      u_new[idx] = val;
+      local_diff = fabs(val - u[idx]);
+      u[idx] = val;
     }
   }
 
@@ -188,7 +188,6 @@ int main(int argc, char **argv)
 
   int total_size = local_Nx_with_ghosts * local_Ny_with_ghosts * local_Nz_with_ghosts;
   double *u = new double[total_size];
-  double *u_old = new double[total_size];
   double *rhs = new double[total_size];
   double *exact = new double[total_size];
 
@@ -203,7 +202,6 @@ int main(int argc, char **argv)
   for (int i = 0; i < total_size; i++)
   {
     u[i] = 0.0;
-    u_old[i] = 0.0;
     rhs[i] = 0.0;
     exact[i] = 0.0;
   }
@@ -262,14 +260,12 @@ int main(int argc, char **argv)
   }
 
   // device arrays
-  double *d_u, *d_u_old, *d_rhs, *d_block_max_diffs;
+  double *d_u, *d_rhs, *d_block_max_diffs;
   // allocate and copy
   GPU_CHECK(cudaMalloc(&d_u, total_size * sizeof(double)));
-  GPU_CHECK(cudaMalloc(&d_u_old, total_size * sizeof(double)));
   GPU_CHECK(cudaMalloc(&d_rhs, total_size * sizeof(double)));
 
   GPU_CHECK(cudaMemcpy(d_u, u, total_size * sizeof(double), cudaMemcpyHostToDevice));
-  GPU_CHECK(cudaMemcpy(d_u_old, u_old, total_size * sizeof(double), cudaMemcpyHostToDevice));
   GPU_CHECK(cudaMemcpy(d_rhs, rhs, total_size * sizeof(double), cudaMemcpyHostToDevice));
 
   // End init time
@@ -316,11 +312,6 @@ int main(int argc, char **argv)
   {
     diff = 0.0;
 
-    // swap pointers
-    double *temp = u_old;
-    u_old = u;
-    u = temp;
-
     // residual and error
     double residual = 0.0;
     double error = 0.0;
@@ -331,33 +322,33 @@ int main(int argc, char **argv)
     // X - direction(non - periodic) : west / east
     if (west != MPI_PROC_NULL)
     {
-      MPI_Isend(&u_old[idx(1, 1, 1)], 1, yz_plane_type, west, 0, my_cart_dim, &reqs[req_count++]);
-      MPI_Irecv(&u_old[idx(0, 1, 1)], 1, yz_plane_type, west, 0, my_cart_dim, &reqs[req_count++]);
+      MPI_Isend(&u[idx(1, 1, 1)], 1, yz_plane_type, west, 0, my_cart_dim, &reqs[req_count++]);
+      MPI_Irecv(&u[idx(0, 1, 1)], 1, yz_plane_type, west, 0, my_cart_dim, &reqs[req_count++]);
     }
     if (east != MPI_PROC_NULL)
     {
-      MPI_Isend(&u_old[idx(local_Nx, 1, 1)], 1, yz_plane_type, east, 0, my_cart_dim, &reqs[req_count++]);
-      MPI_Irecv(&u_old[idx(local_Nx + 1, 1, 1)], 1, yz_plane_type, east, 0, my_cart_dim, &reqs[req_count++]);
+      MPI_Isend(&u[idx(local_Nx, 1, 1)], 1, yz_plane_type, east, 0, my_cart_dim, &reqs[req_count++]);
+      MPI_Irecv(&u[idx(local_Nx + 1, 1, 1)], 1, yz_plane_type, east, 0, my_cart_dim, &reqs[req_count++]);
     }
 
     // Y-direction (periodic): north/south
-    MPI_Isend(&u_old[idx(1, 1, 1)], 1, xz_plane_type, north, 0, my_cart_dim, &reqs[req_count++]);
-    MPI_Irecv(&u_old[idx(1, 0, 1)], 1, xz_plane_type, north, 0, my_cart_dim, &reqs[req_count++]);
+    MPI_Isend(&u[idx(1, 1, 1)], 1, xz_plane_type, north, 0, my_cart_dim, &reqs[req_count++]);
+    MPI_Irecv(&u[idx(1, 0, 1)], 1, xz_plane_type, north, 0, my_cart_dim, &reqs[req_count++]);
 
-    MPI_Isend(&u_old[idx(1, local_Ny, 1)], 1, xz_plane_type, south, 0, my_cart_dim, &reqs[req_count++]);
-    MPI_Irecv(&u_old[idx(1, local_Ny + 1, 1)], 1, xz_plane_type, south, 0, my_cart_dim, &reqs[req_count++]);
+    MPI_Isend(&u[idx(1, local_Ny, 1)], 1, xz_plane_type, south, 0, my_cart_dim, &reqs[req_count++]);
+    MPI_Irecv(&u[idx(1, local_Ny + 1, 1)], 1, xz_plane_type, south, 0, my_cart_dim, &reqs[req_count++]);
 
     // Z-direction (periodic): front/back
-    MPI_Isend(&u_old[idx(1, 1, 1)], 1, xy_plane_type, front, 0, my_cart_dim, &reqs[req_count++]);
-    MPI_Irecv(&u_old[idx(1, 1, 0)], 1, xy_plane_type, front, 0, my_cart_dim, &reqs[req_count++]);
+    MPI_Isend(&u[idx(1, 1, 1)], 1, xy_plane_type, front, 0, my_cart_dim, &reqs[req_count++]);
+    MPI_Irecv(&u[idx(1, 1, 0)], 1, xy_plane_type, front, 0, my_cart_dim, &reqs[req_count++]);
 
-    MPI_Isend(&u_old[idx(1, 1, local_Nz)], 1, xy_plane_type, back, 0, my_cart_dim, &reqs[req_count++]);
-    MPI_Irecv(&u_old[idx(1, 1, local_Nz + 1)], 1, xy_plane_type, back, 0, my_cart_dim, &reqs[req_count++]);
+    MPI_Isend(&u[idx(1, 1, local_Nz)], 1, xy_plane_type, back, 0, my_cart_dim, &reqs[req_count++]);
+    MPI_Irecv(&u[idx(1, 1, local_Nz + 1)], 1, xy_plane_type, back, 0, my_cart_dim, &reqs[req_count++]);
 
     // Wait for communication to complete
     MPI_Waitall(req_count, reqs, MPI_STATUSES_IGNORE);
 
-    GPU_CHECK(cudaMemcpy(d_u_old, u_old, total_size * sizeof(double), cudaMemcpyHostToDevice));
+    GPU_CHECK(cudaMemcpy(d_u, u, total_size * sizeof(double), cudaMemcpyHostToDevice));
 
     // Update solution
     // skip first and last point because of dirchlet bounds for x
@@ -370,7 +361,7 @@ int main(int argc, char **argv)
       upper_bound_dec = 1;
 
     update_kernel<<<grid_size, block_size>>>(
-        d_u, d_u_old, d_rhs, h_squared, lower_bound_inc, upper_bound_dec,
+        d_u, d_rhs, h_squared, lower_bound_inc, upper_bound_dec,
         local_Nx_with_ghosts, local_Ny_with_ghosts, local_Nz_with_ghosts, iter,
         d_block_max_diffs);
 
@@ -505,12 +496,10 @@ int main(int argc, char **argv)
   MPI_Type_free(&xy_plane_type);
 
   delete[] u;
-  delete[] u_old;
   delete[] rhs;
   delete[] exact;
 
   cudaFree(d_u);
-  cudaFree(d_u_old);
   cudaFree(d_rhs);
   cudaFree(d_block_max_diffs);
 

@@ -68,7 +68,6 @@ int main(int argc, char **argv)
 
   int total_size = local_Nx_with_ghosts * local_Ny_with_ghosts * local_Nz_with_ghosts;
   double *u = new double[total_size];
-  double *u_old = new double[total_size];
   double *rhs = new double[total_size];
   double *exact = new double[total_size];
 
@@ -83,7 +82,6 @@ int main(int argc, char **argv)
   for (int i = 0; i < total_size; i++)
   {
     u[i] = 0.0;
-    u_old[i] = 0.0;
     rhs[i] = 0.0;
     exact[i] = 0.0;
   }
@@ -123,7 +121,6 @@ int main(int argc, char **argv)
       for (int k = 1; k <= local_Nz; ++k)
       {
         u[idx(0, j, k)] = 0;
-        u_old[idx(0, j, k)] = 0;
         init_bytes += 1;
       }
     }
@@ -137,7 +134,6 @@ int main(int argc, char **argv)
       for (int k = 1; k <= local_Nz; ++k)
       {
         u[idx(local_Nx + 1, j, k)] = 1;
-        u_old[idx(local_Nx + 1, j, k)] = 1;
         init_bytes += 1;
       }
     }
@@ -189,28 +185,28 @@ int main(int argc, char **argv)
     // X - direction(non - periodic) : west / east
     if (west != MPI_PROC_NULL)
     {
-      MPI_Isend(&u_old[idx(1, 1, 1)], 1, yz_plane_type, west, 0, my_cart_dim, &reqs[req_count++]);
-      MPI_Irecv(&u_old[idx(0, 1, 1)], 1, yz_plane_type, west, 0, my_cart_dim, &reqs[req_count++]);
+      MPI_Isend(&u[idx(1, 1, 1)], 1, yz_plane_type, west, 0, my_cart_dim, &reqs[req_count++]);
+      MPI_Irecv(&u[idx(0, 1, 1)], 1, yz_plane_type, west, 0, my_cart_dim, &reqs[req_count++]);
     }
     if (east != MPI_PROC_NULL)
     {
-      MPI_Isend(&u_old[idx(local_Nx, 1, 1)], 1, yz_plane_type, east, 0, my_cart_dim, &reqs[req_count++]);
-      MPI_Irecv(&u_old[idx(local_Nx + 1, 1, 1)], 1, yz_plane_type, east, 0, my_cart_dim, &reqs[req_count++]);
+      MPI_Isend(&u[idx(local_Nx, 1, 1)], 1, yz_plane_type, east, 0, my_cart_dim, &reqs[req_count++]);
+      MPI_Irecv(&u[idx(local_Nx + 1, 1, 1)], 1, yz_plane_type, east, 0, my_cart_dim, &reqs[req_count++]);
     }
 
     // Y-direction (periodic): north/south
-    MPI_Isend(&u_old[idx(1, 1, 1)], 1, xz_plane_type, north, 0, my_cart_dim, &reqs[req_count++]);
-    MPI_Irecv(&u_old[idx(1, 0, 1)], 1, xz_plane_type, north, 0, my_cart_dim, &reqs[req_count++]);
+    MPI_Isend(&u[idx(1, 1, 1)], 1, xz_plane_type, north, 0, my_cart_dim, &reqs[req_count++]);
+    MPI_Irecv(&u[idx(1, 0, 1)], 1, xz_plane_type, north, 0, my_cart_dim, &reqs[req_count++]);
 
-    MPI_Isend(&u_old[idx(1, local_Ny, 1)], 1, xz_plane_type, south, 0, my_cart_dim, &reqs[req_count++]);
-    MPI_Irecv(&u_old[idx(1, local_Ny + 1, 1)], 1, xz_plane_type, south, 0, my_cart_dim, &reqs[req_count++]);
+    MPI_Isend(&u[idx(1, local_Ny, 1)], 1, xz_plane_type, south, 0, my_cart_dim, &reqs[req_count++]);
+    MPI_Irecv(&u[idx(1, local_Ny + 1, 1)], 1, xz_plane_type, south, 0, my_cart_dim, &reqs[req_count++]);
 
     // Z-direction (periodic): front/back
-    MPI_Isend(&u_old[idx(1, 1, 1)], 1, xy_plane_type, front, 0, my_cart_dim, &reqs[req_count++]);
-    MPI_Irecv(&u_old[idx(1, 1, 0)], 1, xy_plane_type, front, 0, my_cart_dim, &reqs[req_count++]);
+    MPI_Isend(&u[idx(1, 1, 1)], 1, xy_plane_type, front, 0, my_cart_dim, &reqs[req_count++]);
+    MPI_Irecv(&u[idx(1, 1, 0)], 1, xy_plane_type, front, 0, my_cart_dim, &reqs[req_count++]);
 
-    MPI_Isend(&u_old[idx(1, 1, local_Nz)], 1, xy_plane_type, back, 0, my_cart_dim, &reqs[req_count++]);
-    MPI_Irecv(&u_old[idx(1, 1, local_Nz + 1)], 1, xy_plane_type, back, 0, my_cart_dim, &reqs[req_count++]);
+    MPI_Isend(&u[idx(1, 1, local_Nz)], 1, xy_plane_type, back, 0, my_cart_dim, &reqs[req_count++]);
+    MPI_Irecv(&u[idx(1, 1, local_Nz + 1)], 1, xy_plane_type, back, 0, my_cart_dim, &reqs[req_count++]);
 
     // Wait for communication to complete
     MPI_Waitall(req_count, reqs, MPI_STATUSES_IGNORE);
@@ -234,13 +230,13 @@ int main(int argc, char **argv)
           // red black ordering
           if ((i + j + k) % 2 == (iter % 2))
           {
-            double x_update = (u_old[idx(i - 1, j, k)] + u_old[idx(i + 1, j, k)]);
-            double y_update = (u_old[idx(i, j - 1, k)] + u_old[idx(i, j + 1, k)]);
-            double z_update = (u_old[idx(i, j, k - 1)] + u_old[idx(i, j, k + 1)]);
+            double x_update = (u[idx(i - 1, j, k)] + u[idx(i + 1, j, k)]);
+            double y_update = (u[idx(i, j - 1, k)] + u[idx(i, j + 1, k)]);
+            double z_update = (u[idx(i, j, k - 1)] + u[idx(i, j, k + 1)]);
 
             double val = (x_update + y_update + z_update - rhs[idx(i, j, k)] * (h_squared)) / 6.0;
 
-            double d = std::fabs(val - u_old[idx(i, j, k)]);
+            double d = std::fabs(val - u[idx(i, j, k)]);
             if (d > diff)
               diff = d;
             u[idx(i, j, k)] = val;
@@ -268,11 +264,6 @@ int main(int argc, char **argv)
     double global_diff;
     MPI_Allreduce(&diff, &global_diff, 1, MPI_DOUBLE, MPI_MAX, my_cart_dim);
     diff = global_diff;
-
-    // Swap pointers
-    double *tmp = u_old;
-    u_old = u;
-    u = tmp;
 
     ++iter;
   }
@@ -377,7 +368,6 @@ int main(int argc, char **argv)
   MPI_Type_free(&xy_plane_type);
 
   delete[] u;
-  delete[] u_old;
   delete[] rhs;
   delete[] exact;
 
