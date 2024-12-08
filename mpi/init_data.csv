@@ -1,3 +1,9 @@
 title,operational_intensity,achieved_performance,time,color
 MPI 3D np=8 -O2,3.9604,0.000369899,0.00270344,darkslategrey
 MPI 3D np=8 -O2,3.9604,0.000361294,0.00276783,darkslategrey
+MPI 3D np=8 -O2,3.9604,0.000354799,0.0028185,darkslategrey
+MPI 3D np=8 -O2,3.9604,0.00032775,0.00305111,darkslategrey
+MPI 3D np=8 -O2,3.9604,0.000307373,0.00325338,darkslategrey
+MPI 3D np=8 -O2,3.9604,0.00037233,0.00268579,darkslategrey
+MPI 3D np=8 -O2,3.9604,0.000326751,0.00306043,darkslategrey
+MPI 3D np=8 -O2,3.9604,0.000322991,0.00309606,darkslategrey

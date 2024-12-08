@@ -123,6 +123,7 @@ int main(int argc, char **argv)
       for (int k = 1; k <= local_Nz; ++k)
       {
         u[idx(0, j, k)] = 0;
+        u_old[idx(0, j, k)] = 0;
         init_bytes += 1;
       }
     }
@@ -136,6 +137,7 @@ int main(int argc, char **argv)
       for (int k = 1; k <= local_Nz; ++k)
       {
         u[idx(local_Nx + 1, j, k)] = 1;
+        u_old[idx(local_Nx + 1, j, k)] = 1;
         init_bytes += 1;
       }
     }
@@ -176,11 +178,6 @@ int main(int argc, char **argv)
   while (diff > tol && iter < max_iter)
   {
     diff = 0.0;
-
-    for (int i = 0; i < total_size; i++)
-    {
-      u_old[i] = u[i];
-    }
 
     // residual and error
     double residual = 0.0;
@@ -247,18 +244,14 @@ int main(int argc, char **argv)
             if (d > diff)
               diff = d;
             u[idx(i, j, k)] = val;
-          }
-          else
-          {
-            u[idx(i, j, k)] = u_old[idx(i, j, k)];
-          }
 
-          if (my_rank == 0)
-          {
-            // update residual and error
-            double update_diff = u[idx(i, j, k)] - exact[idx(i, j, k)];
-            residual += update_diff;
-            error += update_diff * update_diff;
+            if (my_rank == 0)
+            {
+              // update residual and error
+              double update_diff = u[idx(i, j, k)] - exact[idx(i, j, k)];
+              residual += update_diff;
+              error += update_diff * update_diff;
+            }
           }
         }
       }
@@ -275,6 +268,11 @@ int main(int argc, char **argv)
     double global_diff;
     MPI_Allreduce(&diff, &global_diff, 1, MPI_DOUBLE, MPI_MAX, my_cart_dim);
     diff = global_diff;
+
+    // Swap pointers
+    double *tmp = u_old;
+    u_old = u;
+    u = tmp;
 
     ++iter;
   }
@@ -323,7 +321,7 @@ int main(int argc, char **argv)
     int achieved_performance_init = init_flops / global_init_time;
 
     // Compute operational intensity and achieved performance
-    double operational_intensity = static_cast<double>(total_flops)/ total_bytes;
+    double operational_intensity = static_cast<double>(total_flops) / total_bytes;
     long achieved_performance = total_flops / global_time;
 
     // Write residual and error data to CSV
