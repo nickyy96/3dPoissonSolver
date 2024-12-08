@@ -283,17 +283,22 @@ int main(int argc, char **argv)
   int num_blocks = grid_size.x * grid_size.y * grid_size.z;
   GPU_CHECK(cudaMalloc(&d_block_max_diffs, num_blocks * sizeof(double)));
 
-  // MPI datatypes for face exchanges
+  int sizes[3] = {local_Nx_with_ghosts, local_Ny_with_ghosts, local_Nz_with_ghosts};
+  int yz_subsizes[3] = {1, local_Ny, local_Nz};
+  int xz_subsizes[3] = {local_Nx, 1, local_Nz};
+  int xy_subsizes[3] = {local_Nx, local_Ny, 1};
+  int starts[3] = {0, 0, 0};
+
   MPI_Datatype yz_plane_type;
-  MPI_Type_contiguous(local_Ny * local_Nz, MPI_DOUBLE, &yz_plane_type);
+  MPI_Type_create_subarray(3, sizes, yz_subsizes, starts, MPI_ORDER_C, MPI_DOUBLE, &yz_plane_type);
   MPI_Type_commit(&yz_plane_type);
 
   MPI_Datatype xz_plane_type;
-  MPI_Type_vector(local_Nx, local_Nz, local_Ny_with_ghosts * local_Nz_with_ghosts, MPI_DOUBLE, &xz_plane_type);
+  MPI_Type_create_subarray(3, sizes, xz_subsizes, starts, MPI_ORDER_C, MPI_DOUBLE, &xz_plane_type);
   MPI_Type_commit(&xz_plane_type);
 
   MPI_Datatype xy_plane_type;
-  MPI_Type_vector(local_Nx * local_Ny, 1, local_Nz_with_ghosts, MPI_DOUBLE, &xy_plane_type);
+  MPI_Type_create_subarray(3, sizes, xy_subsizes, starts, MPI_ORDER_C, MPI_DOUBLE, &xy_plane_type);
   MPI_Type_commit(&xy_plane_type);
 
   // Performance Metrics (exported to CSV)
