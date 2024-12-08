@@ -399,22 +399,21 @@ int main(int argc, char **argv)
 
   // MPI datatypes for face exchanges
   int sizes[3] = {local_Nx_with_ghosts, local_Ny_with_ghosts, local_Nz_with_ghosts};
-  int subsizes[3] = {1, local_Ny, local_Nz};
+  int yz_subsizes[3] = {1, local_Ny, local_Nz};
+  int xz_subsizes[3] = {local_Nx, 1, local_Nz};
+  int xy_subsizes[3] = {local_Nx, local_Ny, 1};
   int starts[3] = {0, 0, 0};
 
   MPI_Datatype yz_plane_type;
-  MPI_Type_create_subarray(3, sizes, subsizes, starts, MPI_ORDER_C, MPI_DOUBLE, &yz_plane_type);
+  MPI_Type_create_subarray(3, sizes, yz_subsizes, starts, MPI_ORDER_C, MPI_DOUBLE, &yz_plane_type);
   MPI_Type_commit(&yz_plane_type);
 
   MPI_Datatype xz_plane_type;
-  // local_nx: number of chunks along i dimension
-  // local_nz: block length (contiguous elements on k dimension)
-  // local_ny_with_ghosts * local_nz_with_ghosts: stride between chunks
-  MPI_Type_vector(local_Nx, local_Nz, local_Ny_with_ghosts * local_Nz_with_ghosts, MPI_DOUBLE, &xz_plane_type);
+  MPI_Type_create_subarray(3, sizes, xz_subsizes, starts, MPI_ORDER_C, MPI_DOUBLE, &xz_plane_type);
   MPI_Type_commit(&xz_plane_type);
 
   MPI_Datatype xy_plane_type;
-  MPI_Type_vector(local_Nx * local_Ny, 1, local_Nz_with_ghosts, MPI_DOUBLE, &xy_plane_type);
+  MPI_Type_create_subarray(3, sizes, xy_subsizes, starts, MPI_ORDER_C, MPI_DOUBLE, &xy_plane_type);
   MPI_Type_commit(&xy_plane_type);
 
   // Performance Metrics (exported to CSV)

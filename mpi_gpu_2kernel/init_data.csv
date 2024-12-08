@@ -34,3 +34,4 @@ MPI 3D np=8 -O2,3.9604,3.2877e-06,0.304164,darkslategrey
 MPI 3D np=8 -O2,3.9604,3.0471e-06,0.328181,darkslategrey
 MPI 3D np=8 -O2,3.9604,3.11307e-06,0.321227,darkslategrey
 MPI 3D np=8 -O2,3.9604,3.06507e-06,0.326257,darkslategrey
+MPI 3D np=8 -O2,3.9604,3.10812e-06,0.321738,darkslategrey
