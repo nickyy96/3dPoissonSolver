@@ -383,7 +383,6 @@ int main(int argc, char **argv)
   dim3 interior_grid_size(((local_Nx - 2) + interior_block_size.x - 1) / interior_block_size.x,
                           ((local_Ny - 2) + interior_block_size.y - 1) / interior_block_size.y,
                           ((local_Nz - 2) + interior_block_size.z - 1) / interior_block_size.z);
-
   dim3 block_size(8, 8, 8);
   dim3 grid_size((local_Nx + block_size.x - 1) / block_size.x,
                  (local_Ny + block_size.y - 1) / block_size.y,
@@ -403,7 +402,6 @@ int main(int argc, char **argv)
   int xz_subsizes[3] = {local_Nx, 1, local_Nz};
   int xy_subsizes[3] = {local_Nx, local_Ny, 1};
   int starts[3] = {0, 0, 0};
-
   MPI_Datatype yz_plane_type;
   MPI_Type_create_subarray(3, sizes, yz_subsizes, starts, MPI_ORDER_C, MPI_DOUBLE, &yz_plane_type);
   MPI_Type_commit(&yz_plane_type);
@@ -431,102 +429,106 @@ int main(int argc, char **argv)
   {
     diff = 0.0;
 
-    // point swap
-    double *temp = u_old;
-    u_old = u;
-    u = temp;
-
-    // Update interior points immediately
-    GPU_CHECK(cudaMemcpyAsync(d_u_old, u_old, total_size * sizeof(double), cudaMemcpyHostToDevice, stream_interior));
-    update_interior_kernel<<<interior_grid_size, interior_block_size, 0, stream_interior>>>(
-        d_u, d_u_old, d_rhs, h_squared,
-        local_Nx_with_ghosts, local_Ny_with_ghosts, local_Nz_with_ghosts, iter,
-        d_block_max_diffs);
-
-    double *block_max_diffs = new double[num_blocks];
-    GPU_CHECK(cudaMemcpyAsync(block_max_diffs, d_block_max_diffs, num_blocks * sizeof(double), cudaMemcpyDeviceToHost, stream_interior));
-
-    // residual and error
-    double residual = 0.0;
-    double error = 0.0;
-
-    MPI_Request reqs[12];
-    int req_count = 0;
-
-    // X - direction(non - periodic) : west / east
-    if (west != MPI_PROC_NULL)
+    for (int i = 0; i < total_size; i++)
     {
-      MPI_Isend(&u_old[idx(1, 1, 1)], 1, yz_plane_type, west, 0, my_cart_dim, &reqs[req_count++]);
-      MPI_Irecv(&u_old[idx(0, 1, 1)], 1, yz_plane_type, west, 0, my_cart_dim, &reqs[req_count++]);
-    }
-    if (east != MPI_PROC_NULL)
-    {
-      MPI_Isend(&u_old[idx(local_Nx, 1, 1)], 1, yz_plane_type, east, 0, my_cart_dim, &reqs[req_count++]);
-      MPI_Irecv(&u_old[idx(local_Nx + 1, 1, 1)], 1, yz_plane_type, east, 0, my_cart_dim, &reqs[req_count++]);
+      u_old[i] = u[i];
     }
 
-    // Y-direction (periodic): north/south
-    MPI_Isend(&u_old[idx(1, 1, 1)], 1, xz_plane_type, north, 0, my_cart_dim, &reqs[req_count++]);
-    MPI_Irecv(&u_old[idx(1, 0, 1)], 1, xz_plane_type, north, 0, my_cart_dim, &reqs[req_count++]);
-
-    MPI_Isend(&u_old[idx(1, local_Ny, 1)], 1, xz_plane_type, south, 0, my_cart_dim, &reqs[req_count++]);
-    MPI_Irecv(&u_old[idx(1, local_Ny + 1, 1)], 1, xz_plane_type, south, 0, my_cart_dim, &reqs[req_count++]);
-
-    // Z-direction (periodic): front/back
-    MPI_Isend(&u_old[idx(1, 1, 1)], 1, xy_plane_type, front, 0, my_cart_dim, &reqs[req_count++]);
-    MPI_Irecv(&u_old[idx(1, 1, 0)], 1, xy_plane_type, front, 0, my_cart_dim, &reqs[req_count++]);
-
-    MPI_Isend(&u_old[idx(1, 1, local_Nz)], 1, xy_plane_type, back, 0, my_cart_dim, &reqs[req_count++]);
-    MPI_Irecv(&u_old[idx(1, 1, local_Nz + 1)], 1, xy_plane_type, back, 0, my_cart_dim, &reqs[req_count++]);
-
-    // Wait for communication to complete
-    MPI_Waitall(req_count, reqs, MPI_STATUSES_IGNORE);
-
-    // Update solution
-    // skip first and last point because of dirchlet bounds for x
-    int lower_bound_inc = 0;
-    if (coords[0] == 0)
-      lower_bound_inc = 1;
-
-    int upper_bound_dec = 0;
-    if (coords[0] == dims[0] - 1)
-      upper_bound_dec = 1;
-
-    GPU_CHECK(cudaMemcpyAsync(d_u_old, u_old, total_size * sizeof(double), cudaMemcpyHostToDevice, stream_boundary));
-    update_boundary_kernel<<<grid_size, block_size, 0, stream_boundary>>>(
-        d_u, d_u_old, d_rhs, h_squared, lower_bound_inc, upper_bound_dec,
-        local_Nx_with_ghosts, local_Ny_with_ghosts, local_Nz_with_ghosts, iter,
-        d_block_max_diffs_boundary);
-
-    double *block_max_diffs_boundary = new double[num_blocks];
-    GPU_CHECK(cudaMemcpyAsync(block_max_diffs_boundary, d_block_max_diffs_boundary, num_blocks * sizeof(double), cudaMemcpyDeviceToHost, stream_boundary));
-
-    cudaDeviceSynchronize();
-
-    // reduce
-    for (int i = 0; i < num_blocks; i++)
+    // red black
+    for (int i = 0; i < 2; i++)
     {
-      if (block_max_diffs[i] > diff)
-        diff = block_max_diffs[i];
+      // Update interior points immediately
+      GPU_CHECK(cudaMemcpyAsync(d_u_old, u_old, total_size * sizeof(double), cudaMemcpyHostToDevice, stream_interior));
+      update_interior_kernel<<<interior_grid_size, interior_block_size, 0, stream_interior>>>(
+          d_u, d_u_old, d_rhs, h_squared,
+          local_Nx_with_ghosts, local_Ny_with_ghosts, local_Nz_with_ghosts, iter,
+          d_block_max_diffs);
+
+      double *block_max_diffs = new double[num_blocks];
+      GPU_CHECK(cudaMemcpyAsync(block_max_diffs, d_block_max_diffs, num_blocks * sizeof(double), cudaMemcpyDeviceToHost, stream_interior));
+
+      // residual and error
+      double residual = 0.0;
+      double error = 0.0;
+
+      MPI_Request reqs[12];
+      int req_count = 0;
+
+      // X - direction(non - periodic) : west / east
+      if (west != MPI_PROC_NULL)
+      {
+        MPI_Isend(&u_old[idx(1, 1, 1)], 1, yz_plane_type, west, 0, my_cart_dim, &reqs[req_count++]);
+        MPI_Irecv(&u_old[idx(0, 1, 1)], 1, yz_plane_type, west, 0, my_cart_dim, &reqs[req_count++]);
+      }
+      if (east != MPI_PROC_NULL)
+      {
+        MPI_Isend(&u_old[idx(local_Nx, 1, 1)], 1, yz_plane_type, east, 0, my_cart_dim, &reqs[req_count++]);
+        MPI_Irecv(&u_old[idx(local_Nx + 1, 1, 1)], 1, yz_plane_type, east, 0, my_cart_dim, &reqs[req_count++]);
+      }
+
+      // Y-direction (periodic): north/south
+      MPI_Isend(&u_old[idx(1, 1, 1)], 1, xz_plane_type, north, 0, my_cart_dim, &reqs[req_count++]);
+      MPI_Irecv(&u_old[idx(1, 0, 1)], 1, xz_plane_type, north, 0, my_cart_dim, &reqs[req_count++]);
+
+      MPI_Isend(&u_old[idx(1, local_Ny, 1)], 1, xz_plane_type, south, 0, my_cart_dim, &reqs[req_count++]);
+      MPI_Irecv(&u_old[idx(1, local_Ny + 1, 1)], 1, xz_plane_type, south, 0, my_cart_dim, &reqs[req_count++]);
+
+      // Z-direction (periodic): front/back
+      MPI_Isend(&u_old[idx(1, 1, 1)], 1, xy_plane_type, front, 0, my_cart_dim, &reqs[req_count++]);
+      MPI_Irecv(&u_old[idx(1, 1, 0)], 1, xy_plane_type, front, 0, my_cart_dim, &reqs[req_count++]);
+
+      MPI_Isend(&u_old[idx(1, 1, local_Nz)], 1, xy_plane_type, back, 0, my_cart_dim, &reqs[req_count++]);
+      MPI_Irecv(&u_old[idx(1, 1, local_Nz + 1)], 1, xy_plane_type, back, 0, my_cart_dim, &reqs[req_count++]);
+
+      // Wait for communication to complete
+      MPI_Waitall(req_count, reqs, MPI_STATUSES_IGNORE);
+
+      // Update solution
+      // skip first and last point because of dirchlet bounds for x
+      int lower_bound_inc = 0;
+      if (coords[0] == 0)
+        lower_bound_inc = 1;
+
+      int upper_bound_dec = 0;
+      if (coords[0] == dims[0] - 1)
+        upper_bound_dec = 1;
+
+      GPU_CHECK(cudaMemcpyAsync(d_u_old, u_old, total_size * sizeof(double), cudaMemcpyHostToDevice, stream_boundary));
+      update_boundary_kernel<<<grid_size, block_size, 0, stream_boundary>>>(
+          d_u, d_u_old, d_rhs, h_squared, lower_bound_inc, upper_bound_dec,
+          local_Nx_with_ghosts, local_Ny_with_ghosts, local_Nz_with_ghosts, iter,
+          d_block_max_diffs_boundary);
+
+      double *block_max_diffs_boundary = new double[num_blocks];
+      GPU_CHECK(cudaMemcpyAsync(block_max_diffs_boundary, d_block_max_diffs_boundary, num_blocks * sizeof(double), cudaMemcpyDeviceToHost, stream_boundary));
+
+      cudaDeviceSynchronize();
+
+      // reduce
+      for (int i = 0; i < num_blocks; i++)
+      {
+        if (block_max_diffs[i] > diff)
+          diff = block_max_diffs[i];
+      }
+
+      for (int i = 0; i < num_blocks; i++)
+      {
+        if (block_max_diffs_boundary[i] > diff)
+          diff = block_max_diffs_boundary[i];
+      }
+      delete[] block_max_diffs;
+      delete[] block_max_diffs_boundary;
+
+      // copy data
+      cudaMemcpy(u, d_u, total_size * sizeof(double), cudaMemcpyDeviceToHost);
+
+      // Compute global maximum difference
+      double global_diff;
+      MPI_Allreduce(&diff, &global_diff, 1, MPI_DOUBLE, MPI_MAX, my_cart_dim);
+      diff = global_diff;
+
+      ++iter;
     }
-
-    for (int i = 0; i < num_blocks; i++)
-    {
-      if (block_max_diffs_boundary[i] > diff)
-        diff = block_max_diffs_boundary[i];
-    }
-    delete[] block_max_diffs;
-    delete[] block_max_diffs_boundary;
-
-    // copy data
-    cudaMemcpy(u, d_u, total_size * sizeof(double), cudaMemcpyDeviceToHost);
-
-    // Compute global maximum difference
-    double global_diff;
-    MPI_Allreduce(&diff, &global_diff, 1, MPI_DOUBLE, MPI_MAX, my_cart_dim);
-    diff = global_diff;
-
-    ++iter;
   }
 
   double end_time = MPI_Wtime();

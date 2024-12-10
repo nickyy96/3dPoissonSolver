@@ -1,0 +1,25 @@
+#!/bin/bash
+
+#SBATCH -J launcher           # Job name
+#SBATCH -o mm.%j.out         # Name of stdout output file (%j expands to jobId)
+#SBATCH -e mm.%j.err         # Name of stdout output file (%j expands to jobId)
+#SBATCH -N 1                  # Total number of nodes requested
+#SBATCH -n 8                  # Total number of mpi tasks requested
+#SBATCH -t 05:00:00           # Run time (hh:mm:ss) - 3 minutes
+#SBATCH --cpus-per-task 16
+#SBATCH -p mi2104x            # Desired partition
+
+
+# Note that the output from each step will be saved to a unique
+# file: %J maps to jobid.stepid
+
+module load openmpi4/4.1.5
+
+srun rocprof --hip-trace ./task
+# srun ./task
+
+# mpirun -np 8 rocprof --hip-trace ./task
+echo "All Steps completed."
+
+# Use this after ssh-ing into the above node to ensure that the GPU is being used
+# watch -n 0.1 rocm-smi --showuse
