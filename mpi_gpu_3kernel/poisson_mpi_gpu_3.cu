@@ -726,7 +726,7 @@ int main(int argc, char **argv)
   const int n = 2, m = 2, l = 2;
 
   // Create a 3D Cartesian communicator
-  int dims[3] = {2, 2, 2};
+  int dims[3] = {0, 0, 0};
   MPI_Dims_create(size, 3, dims);
   int periods[3] = {0, 1, 1};
   MPI_Comm my_cart_dim;
@@ -811,20 +811,8 @@ int main(int argc, char **argv)
   // Initialize arrays
   for (int i = 0; i < total_size; i++)
   {
-    u[i] = 0.0; // TODO: can probably delete
     rhs[i] = 0.0;
     exact[i] = 0.0;
-  }
-
-  for (int i = 0; i < interior_size; i++)
-  {
-    u_interior[i] = 0.0;
-  }
-
-  for (int i = 0; i < boundary_size; i++)
-  {
-    u_boundary[i] = 0.0; // TODO: can probably delete
-    u_ghost[i] = 0.0;    // TODO: can probably delete
   }
 
   // Compute rhs and exact solution
@@ -991,12 +979,12 @@ int main(int argc, char **argv)
       int req_count = 0;
 
       // X - direction(non - periodic) : back / front
-      if (back >= 0)
+      if (back != MPI_PROC_NULL)
       {
         MPI_Isend(&u_boundary[u_back], 1, yz_plane_type, back, 0, my_cart_dim, &reqs[req_count++]);
         MPI_Irecv(&u_ghost[u_back], 1, yz_plane_type, back, 0, my_cart_dim, &reqs[req_count++]);
       }
-      if (front >= 0)
+      if (front != MPI_PROC_NULL)
       {
         MPI_Isend(&u_boundary[u_front], 1, yz_plane_type, front, 0, my_cart_dim, &reqs[req_count++]);
         MPI_Irecv(&u_ghost[u_front], 1, yz_plane_type, front, 0, my_cart_dim, &reqs[req_count++]);

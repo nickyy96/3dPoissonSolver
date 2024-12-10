@@ -22,7 +22,7 @@ int main(int argc, char **argv)
   const double tol = 1e-6;
   const int max_iter = 100000;
   const double pi = acos(-1.0);
-  const int n = 1, m = 1, l = 1;
+  const int n = 2, m = 2, l = 2;
 
   // Create a 3D Cartesian communicator
   int dims[3] = {0, 0, 0};
@@ -120,7 +120,7 @@ int main(int argc, char **argv)
     {
       for (int k = 1; k <= local_Nz; ++k)
       {
-        u[idx(0, j, k)] = 0;
+        u[idx(1, j, k)] = exact[idx(1, j, k)];
         init_bytes += 1;
       }
     }
@@ -133,7 +133,7 @@ int main(int argc, char **argv)
     {
       for (int k = 1; k <= local_Nz; ++k)
       {
-        u[idx(local_Nx + 1, j, k)] = 1;
+        u[idx(local_Nx, j, k)] = exact[idx(local_Nx, j, k)];
         init_bytes += 1;
       }
     }
