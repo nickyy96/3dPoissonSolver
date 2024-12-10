@@ -1,0 +1,81 @@
+RPL: on '241209_232324' from '/opt/rocm-6.2.1' in '/home1/bustudent23/APMA2822B/3dPoissonSolver/mpi_gpu_3kernel'
+RPL: on '241209_232324' from '/opt/rocm-6.2.1' in '/home1/bustudent23/APMA2822B/3dPoissonSolver/mpi_gpu_3kernel'
+RPL: on '241209_232324' from '/opt/rocm-6.2.1' in '/home1/bustudent23/APMA2822B/3dPoissonSolver/mpi_gpu_3kernel'
+RPL: on '241209_232324' from '/opt/rocm-6.2.1' in '/home1/bustudent23/APMA2822B/3dPoissonSolver/mpi_gpu_3kernel'
+RPL: on '241209_232324' from '/opt/rocm-6.2.1' in '/home1/bustudent23/APMA2822B/3dPoissonSolver/mpi_gpu_3kernel'
+RPL: on '241209_232324' from '/opt/rocm-6.2.1' in '/home1/bustudent23/APMA2822B/3dPoissonSolver/mpi_gpu_3kernel'
+RPL: on '241209_232324' from '/opt/rocm-6.2.1' in '/home1/bustudent23/APMA2822B/3dPoissonSolver/mpi_gpu_3kernel'
+RPL: on '241209_232324' from '/opt/rocm-6.2.1' in '/home1/bustudent23/APMA2822B/3dPoissonSolver/mpi_gpu_3kernel'
+RPL: profiling '"./task"'
+RPL: input file ''
+RPL: profiling '"./task"'
+RPL: input file ''
+RPL: profiling '"./task"'
+RPL: input file ''
+RPL: profiling '"./task"'
+RPL: input file ''
+RPL: profiling '"./task"'
+RPL: input file ''
+RPL: profiling '"./task"'
+RPL: input file ''
+RPL: profiling '"./task"'
+RPL: input file ''
+RPL: profiling '"./task"'
+RPL: input file ''
+RPL: output dir '/tmp/rpl_data_241209_232324_716458'
+RPL: output dir '/tmp/rpl_data_241209_232324_716455'
+RPL: output dir '/tmp/rpl_data_241209_232324_716459'
+RPL: output dir '/tmp/rpl_data_241209_232324_716453'
+RPL: output dir '/tmp/rpl_data_241209_232324_716456'
+RPL: output dir '/tmp/rpl_data_241209_232324_716457'
+RPL: output dir '/tmp/rpl_data_241209_232324_716452'
+RPL: output dir '/tmp/rpl_data_241209_232324_716454'
+RPL: result dir '/tmp/rpl_data_241209_232324_716455/input_results_241209_232324'
+RPL: result dir '/tmp/rpl_data_241209_232324_716459/input_results_241209_232324'
+RPL: result dir '/tmp/rpl_data_241209_232324_716456/input_results_241209_232324'
+RPL: result dir '/tmp/rpl_data_241209_232324_716453/input_results_241209_232324'
+RPL: result dir '/tmp/rpl_data_241209_232324_716458/input_results_241209_232324'
+RPL: result dir '/tmp/rpl_data_241209_232324_716457/input_results_241209_232324'
+RPL: result dir '/tmp/rpl_data_241209_232324_716454/input_results_241209_232324'
+RPL: result dir '/tmp/rpl_data_241209_232324_716452/input_results_241209_232324'
+ROCtracer (716629):
+ROCtracer (716628):
+ROCtracer (716635):
+ROCtracer (716614):
+ROCtracer (716617):
+ROCtracer (716634):
+ROCtracer (716627):
+ROCtracer (716633):
+    HIP-trace(*)
+    HIP-trace(*)
+    HIP-trace(*)
+    HIP-trace(*)
+    HIP-trace(*)
+    HIP-trace(*)
+    HIP-trace(*)
+    HIP-trace(*)
+
+----------------------------------------------------------------------
+Omnistat Report Card for Job # 126354
+----------------------------------------------------------------------
+
+Job Overview (Num Nodes = 1, Machine = HPC Fund)
+ --> Start time = 2024-12-09 23:24:00
+ --> End   time = 2024-12-10 01:53:00
+
+GPU Statistics:
+
+           | Utilization (%)  |  Memory Use (%)  | Temperature (C)  |    Power (W)     |
+     GPU # |    Max     Mean  |    Max     Mean  |    Max     Mean  |    Max     Mean  |
+    ------------------------------------------------------------------------------------
+         0 |  100.00   93.70  |   10.16   10.16  |   49.00   48.49  |  120.00  119.82  |
+         1 |  100.00   93.07  |   10.16   10.16  |   51.00   50.36  |  123.00  122.90  |
+         2 |  100.00   93.35  |   10.16   10.16  |   47.00   45.94  |  122.00  121.75  |
+         3 |  100.00   93.66  |   10.16   10.16  |   47.00   45.93  |  122.00  121.00  |
+
+Approximate Total GPU Energy Consumed = 1.21 kWh
+
+--
+Query interval = 30 secs
+Query execution time = 0.4 secs
+Version = 1.0.0
