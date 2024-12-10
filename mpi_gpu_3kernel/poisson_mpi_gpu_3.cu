@@ -1075,8 +1075,8 @@ int main(int argc, char **argv)
       cudaDeviceSynchronize();
 
       // copy data (we only need the new boundary data for the next halo)
-      GPU_CHECK(cudaMemcpyAsync(u_boundary, d_u_boundary, boundary_size * sizeof(double), cudaMemcpyDeviceToHost));
-      GPU_CHECK(cudaMemcpyAsync(block_max_diffs_boundary, d_block_max_diffs_boundary, num_boundary_blocks * sizeof(double), cudaMemcpyDeviceToHost));
+      GPU_CHECK(cudaMemcpyAsync(u_boundary, d_u_boundary, boundary_size * sizeof(double), cudaMemcpyDeviceToHost, stream_back));
+      GPU_CHECK(cudaMemcpyAsync(block_max_diffs_boundary, d_block_max_diffs_boundary, num_boundary_blocks * sizeof(double), cudaMemcpyDeviceToHost, stream_front));
 
       cudaDeviceSynchronize();
 
